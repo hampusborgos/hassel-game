@@ -1,4 +1,21 @@
 import Phaser from 'phaser';
+import {
+  initAudio,
+  playHit,
+  playCoinPickup,
+  playShieldPickup,
+  playBossAmbiance,
+  playRobotTelegraph,
+  playRobotRun,
+  playShotFired,
+  playJump,
+  playLand,
+  playStompKill,
+  playShieldBreak,
+  playStuckInHole,
+  playGameOver,
+  playWaveComplete
+} from './sfxr';
 
 interface VirtualJoystick {
   base: Phaser.GameObjects.Arc;
@@ -110,6 +127,10 @@ class MainScene extends Phaser.Scene {
   }
 
   create() {
+    // Initialize audio on first interaction
+    this.input.once('pointerdown', () => initAudio());
+    this.input.keyboard?.once('keydown', () => initAudio());
+
     // Detect mobile
     this.isMobile = this.sys.game.device.input.touch && window.innerWidth <= 1024;
 
@@ -376,6 +397,7 @@ class MainScene extends Phaser.Scene {
     // Check if this hole is on cooldown
     if (h.getData('onCooldown')) return;
 
+    playStuckInHole();
     this.isStuck = true;
     const p = player as Phaser.Physics.Arcade.Sprite;
 
@@ -457,6 +479,7 @@ class MainScene extends Phaser.Scene {
   private triggerJump() {
     if (this.isJumping) return;
 
+    playJump();
     this.isJumping = true;
     const jumpDuration = 800;
     const jumpDistance = 150;
@@ -487,6 +510,7 @@ class MainScene extends Phaser.Scene {
         // Check for zombies at landing position
         this.checkLandingOnZombies();
 
+        playLand();
         this.isJumping = false;
         this.player.setDepth(10);
         this.player.setScale(1);
@@ -560,6 +584,8 @@ class MainScene extends Phaser.Scene {
     const points = zombie.getData('points') || 10;
     const maxHealth = zombie.getData('maxHealth') || 1;
     const isBoss = zombie.getData('isBoss');
+
+    playStompKill();
 
     // Award bonus points for landing kill (10x points!)
     this.score += points * 10;
@@ -1237,7 +1263,7 @@ class MainScene extends Phaser.Scene {
       // Update depth based on Y position
       zombie.setDepth(zombie.y);
 
-      // Update boss health bar position
+      // Update boss health bar position and ambient sounds
       if (zombie.getData('isBoss')) {
         const healthBarBg = zombie.getData('healthBarBg') as Phaser.GameObjects.Rectangle;
         const healthBarFg = zombie.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
@@ -1247,10 +1273,15 @@ class MainScene extends Phaser.Scene {
           healthBarBg.setDepth(zombie.y + 1);
           healthBarFg.setDepth(zombie.y + 2);
         }
+        // Random boss ambiance sound (~1% chance per frame)
+        if (Math.random() < 0.01) {
+          playBossAmbiance();
+        }
       }
     }
 
     if (zombies.filter(z => z.active).length === 0) {
+      playWaveComplete();
       this.waveNumber++;
       this.waveText.setText(`Wave ${this.waveNumber}`);
       this.spawnZombieWave();
@@ -1331,6 +1362,8 @@ class MainScene extends Phaser.Scene {
   }
 
   private createRobotTelegraph(x: number, y: number, angle: number, onComplete: () => void) {
+    playRobotTelegraph();
+
     // Calculate line end point (extend far beyond screen)
     const lineLength = 1500;
     const endX = x + Math.cos(angle) * lineLength;
@@ -1377,6 +1410,8 @@ class MainScene extends Phaser.Scene {
   }
 
   private spawnRobotAtPosition(x: number, y: number, angle: number) {
+    playRobotRun();
+
     const robot = this.robots.create(x, y, 'robot') as Phaser.Physics.Arcade.Sprite;
     robot.setDepth(y);
     robot.setData('health', 4);
@@ -1429,6 +1464,8 @@ class MainScene extends Phaser.Scene {
     b.setActive(false);
     b.setVisible(false);
 
+    playHit();
+
     // Reduce health
     const health = r.getData('health') - 1;
     r.setData('health', health);
@@ -1470,6 +1507,7 @@ class MainScene extends Phaser.Scene {
       this.shootBullet(this.aimAngle, offsetX, offsetY);
     }
 
+    playShotFired();
     this.canShoot = false;
     this.time.delayedCall(this.SHOOT_COOLDOWN, () => {
       this.canShoot = true;
@@ -1556,6 +1594,7 @@ class MainScene extends Phaser.Scene {
     const c = coin as Phaser.Physics.Arcade.Sprite;
     c.destroy();
 
+    playCoinPickup();
     this.coinCount++;
     this.coinText.setText(`Coins: ${this.coinCount}`);
     this.saveCoins();
@@ -1568,6 +1607,7 @@ class MainScene extends Phaser.Scene {
     const s = shield as Phaser.Physics.Arcade.Sprite;
     s.destroy();
 
+    playShieldPickup();
     this.hasShield = true;
     this.shieldBubble.setVisible(true);
 
@@ -1718,6 +1758,8 @@ class MainScene extends Phaser.Scene {
     b.setActive(false);
     b.setVisible(false);
 
+    playHit();
+
     // Reduce health
     const health = z.getData('health') - 1;
     z.setData('health', health);
@@ -1864,6 +1906,8 @@ class MainScene extends Phaser.Scene {
   }
 
   private createShieldBreakEffect() {
+    playShieldBreak();
+
     // Create expanding ring effect
     const ring = this.add.circle(this.player.x, this.player.y, 20, 0x66aaff, 0.8);
     ring.setDepth(1001);
@@ -1903,6 +1947,7 @@ class MainScene extends Phaser.Scene {
   }
 
   private gameOver() {
+    playGameOver();
     this.physics.pause();
     this.player.setTint(0xff0000);
 

@@ -12,6 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "jsfxr": "^1.4.0",
     "phaser": "^3.90.0"
   },
   "devDependencies": {
