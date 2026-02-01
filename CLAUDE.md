@@ -25,6 +25,7 @@ hasselgame/
 │       ├── player-right.svg # Right-leaning player sprite
 │       ├── bullet.svg       # Projectile sprite
 │       ├── zombie.svg       # Zombie sprite (teal colored)
+│       ├── boss-zombie.svg  # Boss zombie sprite (bulky, purple)
 │       ├── tree.svg         # Tree obstacle
 │       ├── coin.svg         # Collectible coin
 │       ├── jump.svg         # Ski jump ramp (trapezoid)
@@ -49,7 +50,9 @@ All game logic is in a single Phaser Scene class in `src/main.ts`.
 | `ZOMBIE_BASE_SPEED` | 40 | Minimum zombie speed |
 | `TREE_SPAWN_INTERVAL` | 150 | Y-distance between spawn rows |
 | `ROBOT_SPEED` | 400 | Robot movement speed |
-| `ROBOT_FIRST_WAVE` | 3 | Wave when robots start appearing |
+| `ROBOT_FIRST_WAVE` | 5 | Wave when robots start appearing |
+| `BOSS_WAVES` | [3,6,10] | Single boss spawn waves |
+| `MULTI_BOSS_WAVE` | 12 | Multiple bosses start here |
 
 ### Player System
 
@@ -73,9 +76,27 @@ Zombies spawn from screen edges in waves. Wave size: `8 + waveNumber * 4`
 
 Red zombie spawn chance: `min(0.2 + waveNumber * 0.05, 0.5)`
 
+### Boss Zombie System
+
+Huge purple zombies that appear on specific waves with scaling difficulty:
+
+| Wave | Health | Speed | Points |
+|------|--------|-------|--------|
+| 3 | 50 (x1) | Normal | 500 |
+| 6 | 100 (x2) | 1.2x | 1000 |
+| 10 | 250 (x5) | 1.5x | 2500 |
+| 12+ | Scaling | 1.5x+ | Scaling |
+
+- **Sprite:** Dedicated bulky boss-zombie.svg (64x64)
+- **Scale:** 2x sprite size
+- **Health bar:** Green/red bar displayed above boss, shrinks as damage taken
+- **Death rewards:** 5-10 coins + massive explosion (5 particle bursts)
+- **Wave 12+:** Multiple bosses spawn (1 + every 2 waves, max 5)
+- **Post-12 scaling:** Health = 50 * (5 + waves past 12), Speed continues to increase
+
 ### Robot System
 
-Fast-moving enemy that appears after wave 3:
+Fast-moving enemy that appears after wave 5:
 - **Health:** 2 hits to destroy
 - **Points:** 75 (when shot)
 - **Speed:** 400 (very fast)
@@ -84,7 +105,7 @@ Fast-moving enemy that appears after wave 3:
 - **Stomp rewards:** 1000 points + 25 coins (very rewarding but risky)
 
 Robot burst system:
-1. After wave 3+, when a wave ends and no cooldown active, `startRobotBurst()` is called
+1. After wave 5+, when a wave ends and no cooldown active, `startRobotBurst()` is called
 2. Spawns 3-4 robots with 1.5s delay between each
 3. After burst completes, 8 second cooldown before next burst can start
 

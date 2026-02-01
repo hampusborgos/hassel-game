@@ -45,7 +45,8 @@ class MainScene extends Phaser.Scene {
   private robots!: Phaser.Physics.Arcade.Group;
   private readonly ROBOT_SPEED = 400;
   private readonly ROBOT_FIRST_WAVE = 5;
-  private readonly BOSS_WAVE = 3;
+  private readonly BOSS_WAVES = [3, 6, 10]; // Single boss waves with multipliers
+  private readonly MULTI_BOSS_WAVE = 12; // Multiple bosses start here
   private robotBurstCount = 0;
   private robotBurstMax = 0;
   private robotCooldown = false;
@@ -92,6 +93,7 @@ class MainScene extends Phaser.Scene {
     this.load.svg('player-right', 'assets/player-right.svg', { width: 48, height: 48 });
     this.load.svg('bullet', 'assets/bullet.svg', { width: 8, height: 16 });
     this.load.svg('zombie', 'assets/zombie.svg', { width: 40, height: 40 });
+    this.load.svg('boss-zombie', 'assets/boss-zombie.svg', { width: 64, height: 64 });
     this.load.svg('tree', 'assets/tree.svg', { width: 40, height: 60 });
     this.load.svg('coin', 'assets/coin.svg', { width: 24, height: 24 });
     this.load.svg('jump', 'assets/jump.svg', { width: 64, height: 32 });
@@ -420,13 +422,36 @@ class MainScene extends Phaser.Scene {
     const y = zombie.y;
     const points = zombie.getData('points') || 10;
     const maxHealth = zombie.getData('maxHealth') || 1;
+    const isBoss = zombie.getData('isBoss');
 
     // Award bonus points for landing kill (10x points!)
     this.score += points * 10;
     this.scoreText.setText(`Score: ${this.score}`);
 
-    // Red zombies also drop coins when stomped (50% chance, higher than normal)
-    if (maxHealth > 1 && Math.random() < 0.5) {
+    // Boss stomped - drop lots of coins and big explosions
+    if (isBoss) {
+      const coinCount = Phaser.Math.Between(8, 15);
+      for (let i = 0; i < coinCount; i++) {
+        this.time.delayedCall(i * 80, () => {
+          const offsetX = Phaser.Math.Between(-50, 50);
+          const offsetY = Phaser.Math.Between(-50, 50);
+          this.spawnCoin(x + offsetX, y + offsetY);
+        });
+      }
+      for (let i = 0; i < 7; i++) {
+        this.time.delayedCall(i * 40, () => {
+          const offsetX = Phaser.Math.Between(-50, 50);
+          const offsetY = Phaser.Math.Between(-50, 50);
+          this.createExplosion(x + offsetX, y + offsetY);
+        });
+      }
+      // Destroy health bar
+      const healthBarBg = zombie.getData('healthBarBg') as Phaser.GameObjects.Rectangle;
+      const healthBarFg = zombie.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
+      if (healthBarBg) healthBarBg.destroy();
+      if (healthBarFg) healthBarFg.destroy();
+    } else if (maxHealth > 1 && Math.random() < 0.5) {
+      // Red zombies also drop coins when stomped (50% chance, higher than normal)
       this.spawnCoin(x, y);
     }
 
@@ -597,6 +622,13 @@ class MainScene extends Phaser.Scene {
       if (z.active) {
         const dist = Phaser.Math.Distance.Between(z.x, z.y, this.player.x, this.player.y);
         if (dist > cleanupDistance) {
+          // Clean up boss health bar if applicable
+          if (z.getData('isBoss')) {
+            const healthBarBg = z.getData('healthBarBg') as Phaser.GameObjects.Rectangle;
+            const healthBarFg = z.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
+            if (healthBarBg) healthBarBg.destroy();
+            if (healthBarFg) healthBarFg.destroy();
+          }
           z.destroy();
         }
       }
@@ -744,31 +776,83 @@ class MainScene extends Phaser.Scene {
       });
     }
 
-    // Spawn boss on wave 3
-    if (this.waveNumber === this.BOSS_WAVE) {
+    // Spawn boss(es) on specific waves
+    this.spawnBossesForWave();
+  }
+
+  private spawnBossesForWave() {
+    // Wave 3: x1 health, Wave 6: x2 health, Wave 10: x5 health
+    const healthMultipliers: { [key: number]: number } = { 3: 1, 6: 2, 10: 5 };
+    const speedMultipliers: { [key: number]: number } = { 3: 1, 6: 1.2, 10: 1.5 };
+
+    if (this.BOSS_WAVES.includes(this.waveNumber)) {
+      const healthMult = healthMultipliers[this.waveNumber] || 1;
+      const speedMult = speedMultipliers[this.waveNumber] || 1;
       this.time.delayedCall(500, () => {
-        this.spawnBossZombie();
+        this.spawnBossZombie(healthMult, speedMult);
       });
+    } else if (this.waveNumber >= this.MULTI_BOSS_WAVE) {
+      // After wave 12, spawn multiple bosses
+      const bossCount = Math.min(1 + Math.floor((this.waveNumber - this.MULTI_BOSS_WAVE) / 2), 5);
+      const healthMult = 5 + (this.waveNumber - this.MULTI_BOSS_WAVE);
+      const speedMult = 1.5 + (this.waveNumber - this.MULTI_BOSS_WAVE) * 0.1;
+
+      for (let i = 0; i < bossCount; i++) {
+        this.time.delayedCall(500 + i * 300, () => {
+          this.spawnBossZombie(healthMult, speedMult);
+        });
+      }
     }
   }
 
-  private spawnBossZombie() {
+  private spawnBossZombie(healthMultiplier: number = 1, speedMultiplier: number = 1) {
     const cam = this.cameras.main;
 
     // Spawn from bottom of screen
     const x = Phaser.Math.Between(cam.scrollX + 100, cam.scrollX + cam.width - 100);
     const y = cam.scrollY + cam.height + 100;
 
-    const boss = this.zombies.create(x, y, 'zombie') as Phaser.Physics.Arcade.Sprite;
-    boss.setScale(3); // Huge!
-    boss.setTint(0x8800ff); // Purple tint for boss
-    boss.setDepth(y);
-    boss.setData('health', 50);
-    boss.setData('maxHealth', 50);
-    boss.setData('points', 500);
-    boss.setData('isBoss', true);
+    const baseHealth = 50;
+    const health = baseHealth * healthMultiplier;
 
-    this.setZombieVelocity(boss);
+    const boss = this.zombies.create(x, y, 'boss-zombie') as Phaser.Physics.Arcade.Sprite;
+    boss.setScale(2); // Already a big sprite, scale up more
+    boss.setDepth(y);
+    boss.setData('health', health);
+    boss.setData('maxHealth', health);
+    boss.setData('points', 500 * healthMultiplier);
+    boss.setData('isBoss', true);
+    boss.setData('speedMultiplier', speedMultiplier);
+
+    // Create health bar above boss
+    const barWidth = 80;
+    const barHeight = 8;
+    const healthBarBg = this.add.rectangle(x, y - 70, barWidth, barHeight, 0x880000);
+    const healthBarFg = this.add.rectangle(x, y - 70, barWidth, barHeight, 0x00ff00);
+    healthBarBg.setDepth(y + 1);
+    healthBarFg.setDepth(y + 2);
+    boss.setData('healthBarBg', healthBarBg);
+    boss.setData('healthBarFg', healthBarFg);
+    boss.setData('healthBarWidth', barWidth);
+
+    this.setBossVelocity(boss, speedMultiplier);
+  }
+
+  private setBossVelocity(boss: Phaser.Physics.Arcade.Sprite, speedMultiplier: number) {
+    const baseSpeed = this.ZOMBIE_BASE_SPEED + 30;
+    const speed = baseSpeed * speedMultiplier;
+    const dx = this.player.x - boss.x;
+    const dy = this.player.y - boss.y;
+    const angle = Math.atan2(dy, dx);
+    const wobbleAngle = angle + Phaser.Math.FloatBetween(-0.3, 0.3);
+
+    boss.setVelocity(
+      Math.cos(wobbleAngle) * speed,
+      Math.sin(wobbleAngle) * speed
+    );
+
+    boss.setData('speed', speed);
+    boss.setData('waddleOffset', Phaser.Math.FloatBetween(0, Math.PI * 2));
   }
 
   private spawnZombieFromEdge() {
@@ -840,7 +924,12 @@ class MainScene extends Phaser.Scene {
 
     for (const zombie of zombies) {
       if (!zombie.active) continue;
-      this.setZombieVelocity(zombie);
+      if (zombie.getData('isBoss')) {
+        const speedMult = zombie.getData('speedMultiplier') || 1;
+        this.setBossVelocity(zombie, speedMult);
+      } else {
+        this.setZombieVelocity(zombie);
+      }
     }
   }
 
@@ -975,6 +1064,18 @@ class MainScene extends Phaser.Scene {
 
       // Update depth based on Y position
       zombie.setDepth(zombie.y);
+
+      // Update boss health bar position
+      if (zombie.getData('isBoss')) {
+        const healthBarBg = zombie.getData('healthBarBg') as Phaser.GameObjects.Rectangle;
+        const healthBarFg = zombie.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
+        if (healthBarBg && healthBarFg) {
+          healthBarBg.setPosition(zombie.x, zombie.y - 70);
+          healthBarFg.setPosition(zombie.x, zombie.y - 70);
+          healthBarBg.setDepth(zombie.y + 1);
+          healthBarFg.setDepth(zombie.y + 2);
+        }
+      }
     }
 
     if (zombies.filter(z => z.active).length === 0) {
@@ -1361,6 +1462,14 @@ class MainScene extends Phaser.Scene {
         this.spawnBurstShots(z.x, z.y);
       }
 
+      // Destroy health bar if boss
+      if (isBoss) {
+        const healthBarBg = z.getData('healthBarBg') as Phaser.GameObjects.Rectangle;
+        const healthBarFg = z.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
+        if (healthBarBg) healthBarBg.destroy();
+        if (healthBarFg) healthBarFg.destroy();
+      }
+
       z.destroy();
     } else {
       // Flash white to show hit
@@ -1372,10 +1481,16 @@ class MainScene extends Phaser.Scene {
           const isBoss = z.getData('isBoss');
 
           if (isBoss) {
-            // Restore purple tint for boss, lighter based on damage
-            const purple = Math.floor(0x88 * damageRatio);
-            const tint = (purple << 16) | 0x00ff;
-            z.setTint(tint);
+            // Boss uses dedicated sprite, darken slightly based on damage
+            const brightness = Math.floor(0x88 + (0x77 * damageRatio));
+            z.setTint((brightness << 16) | (brightness << 8) | brightness);
+
+            // Update health bar
+            const healthBarFg = z.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
+            const barWidth = z.getData('healthBarWidth') as number;
+            if (healthBarFg && barWidth) {
+              healthBarFg.width = barWidth * damageRatio;
+            }
           } else if (maxHealth > 1) {
             // Restore red tint for red zombies
             const red = Math.floor(0xff * damageRatio);
