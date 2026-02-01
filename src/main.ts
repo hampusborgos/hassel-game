@@ -1059,8 +1059,10 @@ class MainScene extends Phaser.Scene {
 
       const waddleOffset = zombie.getData('waddleOffset') || 0;
       const speed = zombie.getData('speed') || this.ZOMBIE_BASE_SPEED;
-      const waddleSpeed = speed * 0.1;
-      zombie.rotation = Math.sin(time * 0.01 * waddleSpeed + waddleOffset) * 0.2;
+      const isBoss = zombie.getData('isBoss');
+      const waddleSpeed = isBoss ? speed * 0.03 : speed * 0.1; // Boss waddles slower
+      const waddleAmount = isBoss ? 0.15 : 0.2; // Boss has slightly less rotation
+      zombie.rotation = Math.sin(time * 0.01 * waddleSpeed + waddleOffset) * waddleAmount;
 
       // Update depth based on Y position
       zombie.setDepth(zombie.y);
@@ -1278,7 +1280,7 @@ class MainScene extends Phaser.Scene {
         bullet.rotation = angle + Math.PI / 2;
         bullet.setDepth(5);
         bullet.setData('isBurstBullet', true);
-        bullet.setTint(0xff8800); // Orange tint for burst bullets
+        bullet.setTint(0xff0000); // Red tint for burst bullets
         bullet.setVelocity(
           Math.cos(angle) * this.BULLET_SPEED * 0.7,
           Math.sin(angle) * this.BULLET_SPEED * 0.7
