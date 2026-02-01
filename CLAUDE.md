@@ -1,4 +1,4 @@
-# Hasselgame - Claude Development Guide
+# Noel åker skidor - Claude Development Guide
 
 ## Overview
 
@@ -28,7 +28,10 @@ hasselgame/
 │       ├── boss-zombie.svg  # Boss zombie sprite (bulky, purple)
 │       ├── tree.svg         # Tree obstacle
 │       ├── coin.svg         # Collectible coin
+│       ├── shield.svg       # Shield pickup item
+│       ├── bubble.svg       # Shield bubble around player
 │       ├── jump.svg         # Ski jump ramp (trapezoid)
+│       ├── hole.svg         # Ice hole trap
 │       └── robot.svg        # Robot enemy
 └── CLAUDE.md
 ```
@@ -70,7 +73,7 @@ All game logic is in a single Phaser Scene class in `src/main.ts`.
 
 Two zombie types:
 1. **Regular zombies:** 1 health, 10 points
-2. **Red zombies:** 3 health, 50 points, 1.2x scale, 35% coin drop chance
+2. **Red zombies:** 6 health, 50 points, 1.2x scale, 35% coin drop chance
 
 Zombies spawn from screen edges in waves. Wave size: `8 + waveNumber * 4`
 
@@ -82,9 +85,9 @@ Huge purple zombies that appear on specific waves with scaling difficulty:
 
 | Wave | Health | Speed | Points |
 |------|--------|-------|--------|
-| 3 | 50 (x1) | Normal | 500 |
-| 6 | 100 (x2) | 1.2x | 1000 |
-| 10 | 250 (x5) | 1.5x | 2500 |
+| 3 | 100 (x1) | Normal | 500 |
+| 6 | 200 (x2) | 1.2x | 1000 |
+| 10 | 500 (x5) | 1.5x | 2500 |
 | 12+ | Scaling | 1.5x+ | Scaling |
 
 - **Sprite:** Dedicated bulky boss-zombie.svg (64x64)
@@ -97,7 +100,7 @@ Huge purple zombies that appear on specific waves with scaling difficulty:
 ### Robot System
 
 Fast-moving enemy that appears after wave 5:
-- **Health:** 2 hits to destroy
+- **Health:** 4 hits to destroy
 - **Points:** 75 (when shot)
 - **Speed:** 400 (very fast)
 - **Movement:** Straight line towards player's position at spawn time (does NOT track)
@@ -118,11 +121,26 @@ Robot burst system:
 - **Landing kills:** Landing on zombies gives **10x points** and creates particle explosion
 - **Red zombies:** 50% coin drop when stomped (vs 35% when shot)
 
+### Hole System
+
+- **Spawn rate:** 4x rarer than ski jumps (~0.75% density)
+- **Effect:** Player gets stuck for 4 seconds, cannot move but can still shoot
+- **Visual:** Player shrinks slightly and gets blue tint while stuck
+- **Immunity:** Jumping over holes avoids them
+
 ### Coin System
 
 - **Persistence:** Coins save to `localStorage` key `hasselgame_coins`
 - **Collection:** Overlap collision with player
 - **Animation:** Bounce + spinning effect when spawned
+
+### Shield System
+
+- **Effect:** Absorbs one hit, then 2 seconds invulnerability
+- **Visual:** Blue bubble around player when shielded
+- **Drop rate:** ~2% from zombie kills (average 1 per 5 waves)
+- **Guaranteed drop:** One shield guaranteed before wave 3
+- **Animation:** Floating + rotating pickup, shield break particles on hit
 
 ### Weapon Shop System
 
@@ -140,7 +158,7 @@ Accessible via "SHOP" button on game over screen.
 - Selected weapon: `localStorage` key `hasselgame_selected_weapon`
 
 **Burst Shot mechanics:**
-- 6 orange-tinted bullets spawn at kill location
+- 10 red-tinted bullets spawn at kill location
 - Bullets travel at 70% speed for 200ms then disappear
 - Burst bullets don't trigger additional bursts (prevents chain reactions)
 

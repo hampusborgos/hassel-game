@@ -26,8 +26,14 @@ class MainScene extends Phaser.Scene {
   private zombies!: Phaser.Physics.Arcade.Group;
   private trees!: Phaser.GameObjects.Group;
   private jumps!: Phaser.Physics.Arcade.StaticGroup;
+  private holes!: Phaser.Physics.Arcade.StaticGroup;
   private isJumping = false;
+  private isStuck = false;
   private isInvulnerable = false;
+  private hasShield = false;
+  private shieldBubble!: Phaser.GameObjects.Sprite;
+  private shields!: Phaser.Physics.Arcade.Group;
+  private shieldDroppedBeforeWave3 = false;
   private scoreText!: Phaser.GameObjects.Text;
   private coinText!: Phaser.GameObjects.Text;
   private coins!: Phaser.Physics.Arcade.Group;
@@ -96,7 +102,10 @@ class MainScene extends Phaser.Scene {
     this.load.svg('boss-zombie', 'assets/boss-zombie.svg', { width: 64, height: 64 });
     this.load.svg('tree', 'assets/tree.svg', { width: 40, height: 60 });
     this.load.svg('coin', 'assets/coin.svg', { width: 24, height: 24 });
+    this.load.svg('shield', 'assets/shield.svg', { width: 32, height: 32 });
+    this.load.svg('bubble', 'assets/bubble.svg', { width: 64, height: 64 });
     this.load.svg('jump', 'assets/jump.svg', { width: 64, height: 32 });
+    this.load.svg('hole', 'assets/hole.svg', { width: 48, height: 32 });
     this.load.svg('robot', 'assets/robot.svg', { width: 40, height: 48 });
   }
 
@@ -112,6 +121,9 @@ class MainScene extends Phaser.Scene {
 
     // Create jumps group (static physics for collision)
     this.jumps = this.physics.add.staticGroup();
+
+    // Create holes group
+    this.holes = this.physics.add.staticGroup();
 
     // Spawn initial trees around starting area
     this.spawnInitialTrees();
@@ -137,8 +149,26 @@ class MainScene extends Phaser.Scene {
     // Create coins group
     this.coins = this.physics.add.group();
 
+    // Create shields group
+    this.shields = this.physics.add.group();
+
     // Create robots group
     this.robots = this.physics.add.group();
+
+    // Create shield bubble (hidden initially)
+    this.shieldBubble = this.add.sprite(0, 0, 'bubble');
+    this.shieldBubble.setVisible(false);
+    this.shieldBubble.setDepth(15);
+    this.shieldBubble.setAlpha(0.7);
+
+    // Player-shield collision
+    this.physics.add.overlap(
+      this.player,
+      this.shields,
+      this.collectShield as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+      undefined,
+      this
+    );
 
     // Player-coin collision
     this.physics.add.overlap(
@@ -162,7 +192,7 @@ class MainScene extends Phaser.Scene {
     this.physics.add.overlap(
       this.player,
       this.zombies,
-      this.gameOver as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+      this.handlePlayerHit as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
       () => !this.isJumping && !this.isInvulnerable,
       this
     );
@@ -173,6 +203,15 @@ class MainScene extends Phaser.Scene {
       this.jumps,
       this.hitJump as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
       undefined,
+      this
+    );
+
+    // Player-hole collision
+    this.physics.add.overlap(
+      this.player,
+      this.holes,
+      this.hitHole as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+      () => !this.isStuck && !this.isJumping, // Only trigger if not already stuck or jumping
       this
     );
 
@@ -189,7 +228,7 @@ class MainScene extends Phaser.Scene {
     this.physics.add.overlap(
       this.player,
       this.robots,
-      this.gameOver as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+      this.handlePlayerHit as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
       () => !this.isJumping && !this.isInvulnerable,
       this
     );
@@ -269,8 +308,11 @@ class MainScene extends Phaser.Scene {
           if (rand < 0.05) {
             // 5% chance for a ski jump
             this.spawnJump(x + offsetX, y + offsetY);
+          } else if (rand < 0.0625) {
+            // 1.25% chance for a hole (4x rarer than jumps)
+            this.spawnHole(x + offsetX, y + offsetY);
           } else if (rand < 0.45) {
-            // 40% chance for a tree
+            // ~39% chance for a tree
             this.spawnTree(x + offsetX, y + offsetY);
           }
         }
@@ -291,6 +333,12 @@ class MainScene extends Phaser.Scene {
     const jump = this.jumps.create(x, y, 'jump') as Phaser.Physics.Arcade.Sprite;
     jump.setDepth(y - 10); // Jumps appear slightly behind things at same y
     jump.refreshBody();
+  }
+
+  private spawnHole(x: number, y: number) {
+    const hole = this.holes.create(x, y, 'hole') as Phaser.Physics.Arcade.Sprite;
+    hole.setDepth(y - 15); // Holes appear behind things
+    hole.refreshBody();
   }
 
   private hitJump(
@@ -315,6 +363,95 @@ class MainScene extends Phaser.Scene {
     if (playerVelY > 50) {
       this.triggerJump();
     }
+  }
+
+  private hitHole(
+    player: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile,
+    hole: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile
+  ) {
+    if (this.isStuck) return;
+
+    const h = hole as Phaser.Physics.Arcade.Sprite;
+
+    // Check if this hole is on cooldown
+    if (h.getData('onCooldown')) return;
+
+    this.isStuck = true;
+    const p = player as Phaser.Physics.Arcade.Sprite;
+
+    // Center player in hole
+    p.x = h.x;
+    p.y = h.y;
+
+    // Keep player above the hole visually
+    p.setDepth(h.depth + 10);
+
+    // Visual effect - player sinks slightly and gets blue tint
+    p.setTint(0x88bbff);
+    this.tweens.add({
+      targets: p,
+      scaleX: 0.8,
+      scaleY: 0.8,
+      duration: 200
+    });
+
+    // Create smoke/steam VFX that repeats while stuck
+    const smokeParticles: Phaser.GameObjects.Arc[] = [];
+    const smokeTimer = this.time.addEvent({
+      delay: 150,
+      repeat: 25, // ~4 seconds worth
+      callback: () => {
+        const offsetX = Phaser.Math.Between(-20, 20);
+        const smoke = this.add.circle(
+          p.x + offsetX,
+          p.y - 10,
+          Phaser.Math.Between(4, 8),
+          0xccddee,
+          0.6
+        );
+        smoke.setDepth(p.depth + 1);
+        smokeParticles.push(smoke);
+
+        this.tweens.add({
+          targets: smoke,
+          y: smoke.y - 30,
+          alpha: 0,
+          scale: 1.5,
+          duration: 600,
+          ease: 'Quad.easeOut',
+          onComplete: () => {
+            smoke.destroy();
+            const idx = smokeParticles.indexOf(smoke);
+            if (idx > -1) smokeParticles.splice(idx, 1);
+          }
+        });
+      }
+    });
+
+    // Stuck for 4 seconds
+    this.time.delayedCall(4000, () => {
+      this.isStuck = false;
+      p.clearTint();
+      p.setDepth(10); // Reset to normal depth
+      smokeTimer.destroy();
+      // Clean up any remaining smoke particles
+      smokeParticles.forEach(s => s.destroy());
+
+      // Put this hole on cooldown so player doesn't get stuck again immediately
+      h.setData('onCooldown', true);
+      this.time.delayedCall(3000, () => {
+        if (h.active) {
+          h.setData('onCooldown', false);
+        }
+      });
+
+      this.tweens.add({
+        targets: p,
+        scaleX: 1,
+        scaleY: 1,
+        duration: 200
+      });
+    });
   }
 
   private triggerJump() {
@@ -597,8 +734,11 @@ class MainScene extends Phaser.Scene {
       if (rand < 0.03) {
         // 3% chance for a ski jump
         this.spawnJump(spawnX, spawnY);
+      } else if (rand < 0.0375) {
+        // 0.75% chance for a hole (4x rarer than jumps)
+        this.spawnHole(spawnX, spawnY);
       } else if (rand < 0.35) {
-        // 32% chance for a tree
+        // ~31% chance for a tree
         this.spawnTree(spawnX, spawnY);
       }
     }
@@ -645,11 +785,30 @@ class MainScene extends Phaser.Scene {
       }
     });
 
+    // Remove shields that are too far from player
+    this.shields.getChildren().forEach((shield) => {
+      const s = shield as Phaser.Physics.Arcade.Sprite;
+      if (s.active) {
+        const dist = Phaser.Math.Distance.Between(s.x, s.y, this.player.x, this.player.y);
+        if (dist > cleanupDistance) {
+          s.destroy();
+        }
+      }
+    });
+
     // Remove jumps that are too far above the camera
     this.jumps.getChildren().forEach((jump) => {
       const j = jump as Phaser.Physics.Arcade.Sprite;
       if (j.y < cam.scrollY - cleanupDistance) {
         j.destroy();
+      }
+    });
+
+    // Remove holes that are too far above the camera
+    this.holes.getChildren().forEach((hole) => {
+      const h = hole as Phaser.Physics.Arcade.Sprite;
+      if (h.y < cam.scrollY - cleanupDistance) {
+        h.destroy();
       }
     });
   }
@@ -812,7 +971,7 @@ class MainScene extends Phaser.Scene {
     const x = Phaser.Math.Between(cam.scrollX + 100, cam.scrollX + cam.width - 100);
     const y = cam.scrollY + cam.height + 100;
 
-    const baseHealth = 50;
+    const baseHealth = 100;
     const health = baseHealth * healthMultiplier;
 
     const boss = this.zombies.create(x, y, 'boss-zombie') as Phaser.Physics.Arcade.Sprite;
@@ -890,8 +1049,8 @@ class MainScene extends Phaser.Scene {
 
     if (isRed) {
       zombie.setTint(0xff4444);
-      zombie.setData('health', 3);
-      zombie.setData('maxHealth', 3);
+      zombie.setData('health', 6);
+      zombie.setData('maxHealth', 6);
       zombie.setData('points', 50);
       zombie.setScale(1.2);
     } else {
@@ -979,10 +1138,21 @@ class MainScene extends Phaser.Scene {
       isShooting = pointer.isDown;
     }
 
-    this.player.setVelocity(vx, vy);
+    // Don't allow movement when stuck in a hole
+    if (this.isStuck) {
+      this.player.setVelocity(0, 0);
+    } else {
+      this.player.setVelocity(vx, vy);
+    }
 
     // Update player sprite based on movement direction
     this.updatePlayerSprite(vx, vy);
+
+    // Update shield bubble position
+    if (this.hasShield) {
+      this.shieldBubble.setPosition(this.player.x, this.player.y);
+      this.shieldBubble.setDepth(this.player.depth + 1);
+    }
 
     // Shooting
     if (isShooting && this.canShoot) {
@@ -1148,13 +1318,70 @@ class MainScene extends Phaser.Scene {
         break;
     }
 
+    // Calculate direction to player NOW (for telegraph)
+    const targetX = this.player.x;
+    const targetY = this.player.y;
+    const angle = Phaser.Math.Angle.Between(x, y, targetX, targetY);
+
+    // Create telegraph line
+    this.createRobotTelegraph(x, y, angle, () => {
+      // Spawn robot after telegraph
+      this.spawnRobotAtPosition(x, y, angle);
+    });
+  }
+
+  private createRobotTelegraph(x: number, y: number, angle: number, onComplete: () => void) {
+    // Calculate line end point (extend far beyond screen)
+    const lineLength = 1500;
+    const endX = x + Math.cos(angle) * lineLength;
+    const endY = y + Math.sin(angle) * lineLength;
+
+    // Create the telegraph line
+    const line = this.add.line(0, 0, x, y, endX, endY, 0xff4444, 0.6);
+    line.setLineWidth(2);
+    line.setDepth(5);
+    line.setAlpha(0);
+
+    // Animate line appearing
+    this.tweens.add({
+      targets: line,
+      alpha: 0.7,
+      duration: 150,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        // Pulse effect
+        this.tweens.add({
+          targets: line,
+          alpha: 0.3,
+          duration: 200,
+          yoyo: true,
+          repeat: 2,
+          ease: 'Sine.easeInOut'
+        });
+      }
+    });
+
+    // After 1 second, fade out and spawn robot
+    this.time.delayedCall(1000, () => {
+      this.tweens.add({
+        targets: line,
+        alpha: 0,
+        duration: 150,
+        ease: 'Quad.easeIn',
+        onComplete: () => {
+          line.destroy();
+          onComplete();
+        }
+      });
+    });
+  }
+
+  private spawnRobotAtPosition(x: number, y: number, angle: number) {
     const robot = this.robots.create(x, y, 'robot') as Phaser.Physics.Arcade.Sprite;
     robot.setDepth(y);
-    robot.setData('health', 2);
+    robot.setData('health', 4);
     robot.setData('points', 75);
 
-    // Calculate direction to player at spawn time (fixed direction)
-    const angle = Phaser.Math.Angle.Between(x, y, this.player.x, this.player.y);
     robot.setData('angle', angle);
     robot.rotation = angle + Math.PI / 2;
 
@@ -1269,9 +1496,9 @@ class MainScene extends Phaser.Scene {
   }
 
   private spawnBurstShots(x: number, y: number) {
-    // Spawn 6 bullets in all directions
-    for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * Math.PI * 2;
+    // Spawn 10 bullets in all directions
+    for (let i = 0; i < 10; i++) {
+      const angle = (i / 10) * Math.PI * 2;
       const bullet = this.bullets.get(x, y) as Phaser.Physics.Arcade.Sprite;
 
       if (bullet) {
@@ -1332,6 +1559,74 @@ class MainScene extends Phaser.Scene {
     this.coinCount++;
     this.coinText.setText(`Coins: ${this.coinCount}`);
     this.saveCoins();
+  }
+
+  private collectShield(
+    player: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile,
+    shield: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile
+  ) {
+    const s = shield as Phaser.Physics.Arcade.Sprite;
+    s.destroy();
+
+    this.hasShield = true;
+    this.shieldBubble.setVisible(true);
+
+    // Flash effect when collecting shield
+    this.shieldBubble.setAlpha(1);
+    this.tweens.add({
+      targets: this.shieldBubble,
+      alpha: 0.7,
+      duration: 300,
+      ease: 'Quad.easeOut'
+    });
+  }
+
+  private spawnShield(x: number, y: number) {
+    const shield = this.shields.create(x, y, 'shield') as Phaser.Physics.Arcade.Sprite;
+    shield.setDepth(y);
+
+    // Floating animation
+    this.tweens.add({
+      targets: shield,
+      y: y - 10,
+      duration: 500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+
+    // Sparkle rotation
+    this.tweens.add({
+      targets: shield,
+      angle: 10,
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+  }
+
+  private tryDropShield(x: number, y: number) {
+    // Guarantee one shield drop before wave 3
+    if (this.waveNumber < 3 && !this.shieldDroppedBeforeWave3) {
+      // Higher chance before wave 3 to ensure drop (20% per kill)
+      if (Math.random() < 0.2) {
+        this.shieldDroppedBeforeWave3 = true;
+        this.spawnShield(x, y);
+        return;
+      }
+      // Force drop on wave 2 if still no shield
+      if (this.waveNumber === 2 && Math.random() < 0.5) {
+        this.shieldDroppedBeforeWave3 = true;
+        this.spawnShield(x, y);
+        return;
+      }
+    }
+
+    // Normal drop rate: ~2% (average 1 per 5 waves with ~10 zombies per wave)
+    if (Math.random() < 0.02) {
+      this.spawnShield(x, y);
+    }
   }
 
   private loadCoins(): number {
@@ -1472,6 +1767,11 @@ class MainScene extends Phaser.Scene {
         if (healthBarFg) healthBarFg.destroy();
       }
 
+      // Shield drop chance (only if player doesn't have one)
+      if (!this.hasShield) {
+        this.tryDropShield(z.x, z.y);
+      }
+
       z.destroy();
     } else {
       // Flash white to show hit
@@ -1534,6 +1834,72 @@ class MainScene extends Phaser.Scene {
 
     const rank = topScores.indexOf(score) + 1;
     return { scores: topScores, rank: rank <= 5 ? rank : 0 };
+  }
+
+  private handlePlayerHit() {
+    if (this.hasShield) {
+      // Shield absorbs the hit
+      this.hasShield = false;
+      this.shieldBubble.setVisible(false);
+
+      // Shield break effect
+      this.createShieldBreakEffect();
+
+      // 2 seconds of invulnerability after shield breaks
+      this.isInvulnerable = true;
+      this.tweens.add({
+        targets: this.player,
+        alpha: 0.3,
+        duration: 100,
+        yoyo: true,
+        repeat: 9, // 10 flashes over 2 seconds
+        onComplete: () => {
+          this.isInvulnerable = false;
+          this.player.setAlpha(1);
+        }
+      });
+    } else {
+      this.gameOver();
+    }
+  }
+
+  private createShieldBreakEffect() {
+    // Create expanding ring effect
+    const ring = this.add.circle(this.player.x, this.player.y, 20, 0x66aaff, 0.8);
+    ring.setDepth(1001);
+
+    this.tweens.add({
+      targets: ring,
+      scale: 3,
+      alpha: 0,
+      duration: 300,
+      ease: 'Quad.easeOut',
+      onComplete: () => ring.destroy()
+    });
+
+    // Create shield fragment particles
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const fragment = this.add.circle(
+        this.player.x,
+        this.player.y,
+        5,
+        0x4488ff,
+        0.9
+      );
+      fragment.setDepth(1001);
+
+      this.tweens.add({
+        targets: fragment,
+        x: this.player.x + Math.cos(angle) * 60,
+        y: this.player.y + Math.sin(angle) * 60,
+        alpha: 0,
+        scale: 0.3,
+        duration: 400,
+        ease: 'Quad.easeOut',
+        onComplete: () => fragment.destroy()
+      });
+    }
   }
 
   private gameOver() {
@@ -1741,7 +2107,10 @@ class MainScene extends Phaser.Scene {
     this.waveNumber = 1;
     this.canShoot = true;
     this.isJumping = false;
+    this.isStuck = false;
     this.isInvulnerable = false;
+    this.hasShield = false;
+    this.shieldDroppedBeforeWave3 = false;
     this.robotBurstCount = 0;
     this.robotCooldown = false;
     this.spawnedRows.clear();
@@ -1749,12 +2118,27 @@ class MainScene extends Phaser.Scene {
   }
 }
 
+// Detect if we're in portrait mode on mobile and need to use swapped dimensions
+function getGameDimensions() {
+  const isMobile = 'ontouchstart' in window && window.innerWidth <= 1024;
+  const isPortrait = window.innerHeight > window.innerWidth;
+
+  if (isMobile && isPortrait) {
+    // In portrait mode, game will be rotated 90deg by CSS
+    // So we use viewport height as game width, viewport width as game height
+    return { width: window.innerHeight, height: window.innerWidth };
+  }
+  return { width: 800, height: 600 };
+}
+
+const dimensions = getGameDimensions();
+
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  width: 800,
-  height: 600,
+  width: dimensions.width,
+  height: dimensions.height,
   backgroundColor: '#f0f0f0',
-  parent: document.body,
+  parent: 'game-container',
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH
