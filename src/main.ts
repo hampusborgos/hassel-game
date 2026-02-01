@@ -44,7 +44,8 @@ class MainScene extends Phaser.Scene {
   // Robot enemy
   private robots!: Phaser.Physics.Arcade.Group;
   private readonly ROBOT_SPEED = 400;
-  private readonly ROBOT_FIRST_WAVE = 3;
+  private readonly ROBOT_FIRST_WAVE = 5;
+  private readonly BOSS_WAVE = 3;
   private robotBurstCount = 0;
   private robotBurstMax = 0;
   private robotCooldown = false;
@@ -742,6 +743,32 @@ class MainScene extends Phaser.Scene {
         this.spawnZombieFromEdge();
       });
     }
+
+    // Spawn boss on wave 3
+    if (this.waveNumber === this.BOSS_WAVE) {
+      this.time.delayedCall(500, () => {
+        this.spawnBossZombie();
+      });
+    }
+  }
+
+  private spawnBossZombie() {
+    const cam = this.cameras.main;
+
+    // Spawn from bottom of screen
+    const x = Phaser.Math.Between(cam.scrollX + 100, cam.scrollX + cam.width - 100);
+    const y = cam.scrollY + cam.height + 100;
+
+    const boss = this.zombies.create(x, y, 'zombie') as Phaser.Physics.Arcade.Sprite;
+    boss.setScale(3); // Huge!
+    boss.setTint(0x8800ff); // Purple tint for boss
+    boss.setDepth(y);
+    boss.setData('health', 50);
+    boss.setData('maxHealth', 50);
+    boss.setData('points', 500);
+    boss.setData('isBoss', true);
+
+    this.setZombieVelocity(boss);
   }
 
   private spawnZombieFromEdge() {
@@ -1302,10 +1329,31 @@ class MainScene extends Phaser.Scene {
       const points = z.getData('points') || 10;
       this.score += points;
 
-      // Red zombies (maxHealth > 1) have 35% chance to drop a coin
-      const maxHealth = z.getData('maxHealth') || 1;
-      if (maxHealth > 1 && Math.random() < 0.35) {
-        this.spawnCoin(z.x, z.y);
+      const isBoss = z.getData('isBoss');
+      if (isBoss) {
+        // Boss death - drop 5-10 coins and big explosion
+        const coinCount = Phaser.Math.Between(5, 10);
+        for (let i = 0; i < coinCount; i++) {
+          this.time.delayedCall(i * 100, () => {
+            const offsetX = Phaser.Math.Between(-50, 50);
+            const offsetY = Phaser.Math.Between(-50, 50);
+            this.spawnCoin(z.x + offsetX, z.y + offsetY);
+          });
+        }
+        // Big explosion effect
+        for (let i = 0; i < 5; i++) {
+          this.time.delayedCall(i * 50, () => {
+            const offsetX = Phaser.Math.Between(-40, 40);
+            const offsetY = Phaser.Math.Between(-40, 40);
+            this.createExplosion(z.x + offsetX, z.y + offsetY);
+          });
+        }
+      } else {
+        // Red zombies (maxHealth > 1) have 35% chance to drop a coin
+        const maxHealth = z.getData('maxHealth') || 1;
+        if (maxHealth > 1 && Math.random() < 0.35) {
+          this.spawnCoin(z.x, z.y);
+        }
       }
 
       // Burst shot effect - spawn projectiles on kill (if not from a burst bullet)
@@ -1319,12 +1367,23 @@ class MainScene extends Phaser.Scene {
       z.setTintFill(0xffffff);
       this.time.delayedCall(50, () => {
         if (z.active) {
-          // Restore red tint, slightly lighter based on damage
           const maxHealth = z.getData('maxHealth');
           const damageRatio = health / maxHealth;
-          const red = Math.floor(0xff * damageRatio);
-          const tint = (red << 16) | 0x4444;
-          z.setTint(tint);
+          const isBoss = z.getData('isBoss');
+
+          if (isBoss) {
+            // Restore purple tint for boss, lighter based on damage
+            const purple = Math.floor(0x88 * damageRatio);
+            const tint = (purple << 16) | 0x00ff;
+            z.setTint(tint);
+          } else if (maxHealth > 1) {
+            // Restore red tint for red zombies
+            const red = Math.floor(0xff * damageRatio);
+            const tint = (red << 16) | 0x4444;
+            z.setTint(tint);
+          } else {
+            z.clearTint();
+          }
         }
       });
     }
