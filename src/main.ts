@@ -150,7 +150,7 @@ class MainScene extends Phaser.Scene {
     this.spawnInitialTrees();
 
     // Create player at center
-    this.player = this.physics.add.sprite(400, 300, 'player');
+    this.player = this.physics.add.sprite(this.scale.width / 2, this.scale.height / 2, 'player');
     this.player.setDepth(10);
 
     // Camera follows player
@@ -288,7 +288,7 @@ class MainScene extends Phaser.Scene {
     this.currentWeapon = this.loadSelectedWeapon();
 
     // Wave display (top right)
-    this.waveText = this.add.text(784, 16, 'Wave 1', {
+    this.waveText = this.add.text(this.scale.width - 16, 16, 'Wave 1', {
       fontSize: '24px',
       color: '#333333'
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(100);
@@ -297,7 +297,7 @@ class MainScene extends Phaser.Scene {
       this.createMobileControls();
     } else {
       // Desktop instructions
-      this.add.text(400, 580, 'WASD/Arrows to move, Click to shoot', {
+      this.add.text(this.scale.width / 2, this.scale.height - 20, 'WASD/Arrows to move, Click to shoot', {
         fontSize: '14px',
         color: '#666666'
       }).setOrigin(0.5).setScrollFactor(0).setDepth(100);
@@ -314,16 +314,19 @@ class MainScene extends Phaser.Scene {
 
   private spawnInitialTrees() {
     // Spawn trees and jumps in a grid pattern around the starting area
-    for (let y = -500; y < 1100; y += this.TREE_SPAWN_INTERVAL) {
+    const startX = this.scale.width / 2;
+    const startY = this.scale.height / 2;
+
+    for (let y = startY - 800; y < startY + 800; y += this.TREE_SPAWN_INTERVAL) {
       // Mark this row as spawned
       const rowKey = Math.floor(y / this.TREE_SPAWN_INTERVAL);
       this.markRowSpawned(rowKey);
 
-      for (let x = -500; x < 1300; x += 80) {
+      for (let x = startX - 900; x < startX + 900; x += 80) {
         const offsetX = Phaser.Math.Between(-30, 30);
         const offsetY = Phaser.Math.Between(-30, 30);
         // Avoid spawning too close to player start position
-        const dist = Phaser.Math.Distance.Between(x + offsetX, y + offsetY, 400, 300);
+        const dist = Phaser.Math.Distance.Between(x + offsetX, y + offsetY, startX, startY);
         if (dist > 150) {
           const rand = Math.random();
           if (rand < 0.05) {
@@ -844,8 +847,8 @@ class MainScene extends Phaser.Scene {
     this.input.addPointer(1);
 
     const leftX = 100;
-    const rightX = 700;
-    const joystickY = 500;
+    const rightX = this.scale.width - 100;
+    const joystickY = this.scale.height - 100;
 
     // Left joystick (movement)
     const leftBase = this.add.circle(leftX, joystickY, this.JOYSTICK_RADIUS, 0x444444, 0.5);
@@ -882,7 +885,7 @@ class MainScene extends Phaser.Scene {
       (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
 
     if (!isStandalone) {
-      const fsButton = this.add.text(400, 50, '[ Fullscreen ]', {
+      const fsButton = this.add.text(this.scale.width / 2, 50, '[ Fullscreen ]', {
         fontSize: '20px',
         color: '#333333',
         backgroundColor: '#cccccc',
@@ -1955,7 +1958,10 @@ class MainScene extends Phaser.Scene {
     const { scores, rank } = this.saveHighScore(this.score);
 
     // Game over title (fixed to screen)
-    this.add.text(400, 150, 'GAME OVER', {
+    const centerX = this.scale.width / 2;
+    const centerY = this.scale.height / 2;
+
+    this.add.text(centerX, centerY - 150, 'GAME OVER', {
       fontSize: '64px',
       color: '#ff0000'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(200);
@@ -1963,19 +1969,19 @@ class MainScene extends Phaser.Scene {
     // Current score
     const scoreColor = rank > 0 ? '#cc8800' : '#333333';
     const newHighText = rank === 1 ? ' - NEW BEST!' : rank > 0 ? ` - #${rank}` : '';
-    this.add.text(400, 220, `Score: ${this.score}${newHighText}`, {
+    this.add.text(centerX, centerY - 80, `Score: ${this.score}${newHighText}`, {
       fontSize: '28px',
       color: scoreColor
     }).setOrigin(0.5).setScrollFactor(0).setDepth(200);
 
     // Coins collected
-    this.add.text(400, 252, `Coins collected: ${this.coinCount}`, {
+    this.add.text(centerX, centerY - 48, `Coins collected: ${this.coinCount}`, {
       fontSize: '20px',
       color: '#b45309'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(200);
 
     // High scores title
-    this.add.text(400, 290, 'TOP 5', {
+    this.add.text(centerX, centerY - 10, 'TOP 5', {
       fontSize: '20px',
       color: '#666666'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(200);
@@ -1984,17 +1990,17 @@ class MainScene extends Phaser.Scene {
     scores.forEach((s, i) => {
       const isCurrentScore = s === this.score && i === rank - 1;
       const color = isCurrentScore ? '#cc8800' : '#333333';
-      this.add.text(400, 320 + i * 28, `${i + 1}. ${s}`, {
+      this.add.text(centerX, centerY + 20 + i * 28, `${i + 1}. ${s}`, {
         fontSize: '22px',
         color
       }).setOrigin(0.5).setScrollFactor(0).setDepth(200);
     });
 
     // Buttons
-    const buttonY = 340 + Math.max(scores.length, 1) * 28 + 20;
+    const buttonY = centerY + 40 + Math.max(scores.length, 1) * 28 + 20;
 
     // Shop button
-    const shopBtn = this.add.text(300, buttonY, '[ SHOP ]', {
+    const shopBtn = this.add.text(centerX - 100, buttonY, '[ SHOP ]', {
       fontSize: '24px',
       color: '#333333',
       backgroundColor: '#88cc88',
@@ -2007,7 +2013,7 @@ class MainScene extends Phaser.Scene {
 
     // Restart button
     const restartText = this.isMobile ? '[ PLAY ]' : '[ PLAY ] (R)';
-    const restartBtn = this.add.text(500, buttonY, restartText, {
+    const restartBtn = this.add.text(centerX + 100, buttonY, restartText, {
       fontSize: '24px',
       color: '#333333',
       backgroundColor: '#cccccc',
@@ -2027,20 +2033,23 @@ class MainScene extends Phaser.Scene {
 
   private showShop() {
     // Create shop overlay
-    const overlay = this.add.rectangle(400, 300, 700, 500, 0x000000, 0.9);
+    const centerX = this.scale.width / 2;
+    const centerY = this.scale.height / 2;
+
+    const overlay = this.add.rectangle(centerX, centerY, 700, 500, 0x000000, 0.9);
     overlay.setScrollFactor(0).setDepth(300);
 
     const shopElements: Phaser.GameObjects.GameObject[] = [overlay];
 
     // Shop title
-    const title = this.add.text(400, 80, 'WEAPON SHOP', {
+    const title = this.add.text(centerX, centerY - 220, 'WEAPON SHOP', {
       fontSize: '36px',
       color: '#ffffff'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(301);
     shopElements.push(title);
 
     // Coins display
-    const coinsDisplay = this.add.text(400, 120, `Your coins: ${this.coinCount}`, {
+    const coinsDisplay = this.add.text(centerX, centerY - 180, `Your coins: ${this.coinCount}`, {
       fontSize: '20px',
       color: '#fbbf24'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(301);
@@ -2048,7 +2057,7 @@ class MainScene extends Phaser.Scene {
 
     // Weapon list
     const weapons: WeaponType[] = ['default', 'double-barrel', 'burst-shot'];
-    let yPos = 180;
+    let yPos = centerY - 120;
 
     weapons.forEach((weaponKey) => {
       const weapon = this.WEAPONS[weaponKey];
@@ -2058,19 +2067,19 @@ class MainScene extends Phaser.Scene {
 
       // Weapon container background
       const bgColor = selected ? 0x446644 : 0x333333;
-      const bg = this.add.rectangle(400, yPos + 30, 600, 80, bgColor);
+      const bg = this.add.rectangle(centerX, yPos + 30, 600, 80, bgColor);
       bg.setScrollFactor(0).setDepth(301);
       shopElements.push(bg);
 
       // Weapon name
-      const nameText = this.add.text(150, yPos + 10, weapon.name, {
+      const nameText = this.add.text(centerX - 250, yPos + 10, weapon.name, {
         fontSize: '24px',
         color: '#ffffff'
       }).setScrollFactor(0).setDepth(302);
       shopElements.push(nameText);
 
       // Weapon description
-      const descText = this.add.text(150, yPos + 40, weapon.description, {
+      const descText = this.add.text(centerX - 250, yPos + 40, weapon.description, {
         fontSize: '16px',
         color: '#aaaaaa'
       }).setScrollFactor(0).setDepth(302);
@@ -2088,7 +2097,7 @@ class MainScene extends Phaser.Scene {
         statusColor = canAfford ? '#fbbf24' : '#ff4444';
       }
 
-      const status = this.add.text(550, yPos + 15, statusText, {
+      const status = this.add.text(centerX + 150, yPos + 15, statusText, {
         fontSize: '18px',
         color: statusColor
       }).setOrigin(0.5).setScrollFactor(0).setDepth(302);
@@ -2096,7 +2105,7 @@ class MainScene extends Phaser.Scene {
 
       // Action button
       if (owned && !selected) {
-        const selectBtn = this.add.text(550, yPos + 45, '[ SELECT ]', {
+        const selectBtn = this.add.text(centerX + 150, yPos + 45, '[ SELECT ]', {
           fontSize: '16px',
           color: '#333333',
           backgroundColor: '#88cc88',
@@ -2110,7 +2119,7 @@ class MainScene extends Phaser.Scene {
           this.showShop(); // Refresh shop
         });
       } else if (!owned && canAfford) {
-        const buyBtn = this.add.text(550, yPos + 45, '[ BUY ]', {
+        const buyBtn = this.add.text(centerX + 150, yPos + 45, '[ BUY ]', {
           fontSize: '16px',
           color: '#333333',
           backgroundColor: '#fbbf24',
@@ -2130,7 +2139,7 @@ class MainScene extends Phaser.Scene {
     });
 
     // Close button
-    const closeBtn = this.add.text(400, 520, '[ CLOSE ]', {
+    const closeBtn = this.add.text(centerX, centerY + 220, '[ CLOSE ]', {
       fontSize: '24px',
       color: '#333333',
       backgroundColor: '#cccccc',
@@ -2173,7 +2182,7 @@ function getGameDimensions() {
     // So we use viewport height as game width, viewport width as game height
     return { width: window.innerHeight, height: window.innerWidth };
   }
-  return { width: 800, height: 600 };
+  return { width: window.innerWidth, height: window.innerHeight };
 }
 
 const dimensions = getGameDimensions();
