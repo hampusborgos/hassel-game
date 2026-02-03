@@ -37,6 +37,8 @@ export class GameOverOverlay {
 
   constructor() {
     this.container = document.getElementById('game-over-overlay')!;
+    // Clear any existing content from previous instances
+    this.container.innerHTML = '';
     this.panel = document.createElement('div');
     this.panel.className = 'game-over-panel';
     this.container.appendChild(this.panel);

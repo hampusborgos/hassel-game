@@ -88,7 +88,41 @@ export class MainScene extends Phaser.Scene {
     this.load.svg('robot', 'assets/robot.svg', { width: 40, height: 48 });
   }
 
+  private convertSvgsToBitmaps() {
+    const svgKeys = [
+      'player', 'player-down', 'player-left', 'player-right', 'player-stuck',
+      'bullet', 'zombie', 'boss-zombie', 'tree', 'coin', 'shield', 'bubble',
+      'jump', 'hole', 'robot'
+    ];
+
+    for (const key of svgKeys) {
+      const frame = this.textures.getFrame(key);
+      if (!frame) continue;
+
+      // Create a RenderTexture the same size as the SVG
+      const rt = this.make.renderTexture({
+        width: frame.width,
+        height: frame.height
+      }, false);
+
+      // Draw the SVG sprite to the RenderTexture (from top-left corner)
+      rt.draw(key, 0, 0);
+
+      // Remove the old SVG texture
+      this.textures.remove(key);
+
+      // Save the bitmap with the same key
+      rt.saveTexture(key);
+
+      // Clean up the RenderTexture (texture is preserved)
+      rt.destroy();
+    }
+  }
+
   create() {
+    // Convert SVGs to bitmaps for iOS performance
+    this.convertSvgsToBitmaps();
+
     // Initialize audio on first interaction
     this.input.once('pointerdown', () => initAudio());
     this.input.keyboard?.once('keydown', () => initAudio());

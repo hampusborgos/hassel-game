@@ -22,6 +22,8 @@ export class ShopOverlay {
 
   constructor() {
     this.container = document.getElementById('shop-overlay')!;
+    // Clear any existing content from previous instances
+    this.container.innerHTML = '';
     this.panel = document.createElement('div');
     this.panel.className = 'shop-panel';
     this.container.appendChild(this.panel);
