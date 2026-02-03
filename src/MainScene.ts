@@ -14,6 +14,10 @@ import { createHUD, updateScore, updateWave } from './ui';
 import { GameOverOverlay, ShopOverlay } from './overlays';
 import { generateBitmapFont, UI_FONT_KEY } from './bitmapFont';
 
+// Module-level cache flags to skip expensive operations on scene restart
+let svgTexturesConverted = false;
+let bitmapFontGenerated = false;
+
 export class MainScene extends Phaser.Scene {
   private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -49,6 +53,7 @@ export class MainScene extends Phaser.Scene {
   private robotCooldown = false;
   private ownedWeapons: WeaponType[] = ['default'];
   private currentWeapon: WeaponType = 'default';
+  private currentPlayerTexture: string = 'player-down';
 
   // UI
   private scoreText!: Phaser.GameObjects.BitmapText;
@@ -90,6 +95,9 @@ export class MainScene extends Phaser.Scene {
   }
 
   private convertSvgsToBitmaps() {
+    // Skip if already converted (expensive operation - only do once per page load)
+    if (svgTexturesConverted) return;
+
     const svgKeys = [
       'player', 'player-down', 'player-left', 'player-right', 'player-stuck',
       'bullet', 'zombie', 'boss-zombie', 'tree', 'coin', 'shield', 'bubble',
@@ -118,6 +126,8 @@ export class MainScene extends Phaser.Scene {
       // Clean up the RenderTexture (texture is preserved)
       rt.destroy();
     }
+
+    svgTexturesConverted = true;
   }
 
   create() {
@@ -137,15 +147,15 @@ export class MainScene extends Phaser.Scene {
     // Set up infinite world bounds
     this.physics.world.setBounds(-10000, -10000, 20000, 20000);
 
-    // Create groups (runChildUpdate: false prevents per-child preUpdate calls)
+    // Create groups prevents per-child preUpdate calls)
     this.trees = this.add.group();
     this.jumps = this.physics.add.staticGroup();
     this.holes = this.physics.add.staticGroup();
     this.bullets = this.physics.add.group({ defaultKey: 'bullet', maxSize: 30, runChildUpdate: false });
-    this.zombies = this.physics.add.group({ runChildUpdate: false });
-    this.coins = this.physics.add.group({ runChildUpdate: false });
-    this.shields = this.physics.add.group({ runChildUpdate: false });
-    this.robots = this.physics.add.group({ runChildUpdate: false });
+    this.zombies = this.physics.add.group({});
+    this.coins = this.physics.add.group({});
+    this.shields = this.physics.add.group({});
+    this.robots = this.physics.add.group({});
 
     // Create world manager and spawn initial terrain
     this.worldManager = new WorldManager(this, this.trees, this.jumps, this.holes);
@@ -362,6 +372,7 @@ export class MainScene extends Phaser.Scene {
 
     // Switch to stuck sprite (includes hole visual)
     p.setTexture('player-stuck');
+    this.currentPlayerTexture = 'player-stuck';
     h.setVisible(false); // Hide the hole since it's part of the stuck sprite
 
     // Splash animation - slight bounce
@@ -395,6 +406,7 @@ export class MainScene extends Phaser.Scene {
       this.isStuck = false;
       p.setDepth(DEPTH.PLAYER);
       p.setTexture('player-down'); // Return to normal sprite
+      this.currentPlayerTexture = 'player-down';
       p.angle = 0;
       wiggleTween.stop();
       smokeTimer.destroy();
@@ -952,32 +964,34 @@ export class MainScene extends Phaser.Scene {
   private updatePlayerSprite(vx: number, vy: number) {
     if (this.isJumping) return;
 
-    this.player.rotation = 0;
-
     const movingLeft = vx < -50;
     const movingRight = vx > 50;
     const movingUp = vy < -50;
     const movingDown = vy > 50;
 
+    let newTexture = 'player-down';
+    let newRotation = 0;
+
     if (movingUp) {
-      this.player.setTexture('player');
-      const waggle = Math.sin(this.time.now * 0.015) * 0.15;
-      this.player.rotation = waggle;
+      newTexture = 'player';
+      newRotation = Math.sin(this.time.now * 0.015) * 0.15;
     } else if (movingLeft && !movingDown) {
-      this.player.setTexture('player-left');
+      newTexture = 'player-left';
     } else if (movingRight && !movingDown) {
-      this.player.setTexture('player-right');
-    } else if (movingDown || movingLeft || movingRight) {
-      if (movingLeft) {
-        this.player.setTexture('player-left');
-      } else if (movingRight) {
-        this.player.setTexture('player-right');
-      } else {
-        this.player.setTexture('player-down');
-      }
-    } else {
-      this.player.setTexture('player-down');
+      newTexture = 'player-right';
+    } else if (movingLeft) {
+      newTexture = 'player-left';
+    } else if (movingRight) {
+      newTexture = 'player-right';
     }
+
+    // Only call setTexture when texture actually changes (Safari WebGL optimization)
+    if (newTexture !== this.currentPlayerTexture) {
+      this.player.setTexture(newTexture);
+      this.currentPlayerTexture = newTexture;
+    }
+
+    this.player.rotation = newRotation;
   }
 
   private updateEnemies() {
