@@ -70,11 +70,11 @@ export class WorldManager {
         if (!isInitial && distToPlayer < 100) continue;
 
         const rand = Math.random();
-        if (rand < 0.03) {
+        if (rand < 0.012) {
           this.spawnJump(spawnX, spawnY);
-        } else if (rand < 0.04) {
+        } else if (rand < 0.022) {
           this.spawnHole(spawnX, spawnY);
-        } else if (rand < 0.35) {
+        } else if (rand < 0.146) {
           this.spawnTree(spawnX, spawnY);
         }
       }
