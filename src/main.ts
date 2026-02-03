@@ -17,7 +17,7 @@ function getGameDimensions() {
 const dimensions = getGameDimensions();
 
 const config: Phaser.Types.Core.GameConfig = {
-  type: Phaser.AUTO,
+  type: Phaser.WEBGL,  // Force WebGL - Safari Canvas is very slow
   width: dimensions.width,
   height: dimensions.height,
   backgroundColor: '#f0f0f0',
@@ -25,6 +25,12 @@ const config: Phaser.Types.Core.GameConfig = {
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH
+  },
+  render: {
+    antialias: false,           // Faster rendering
+    pixelArt: false,
+    roundPixels: true,          // Avoid sub-pixel rendering overhead
+    powerPreference: 'high-performance'  // Request dedicated GPU
   },
   physics: {
     default: 'arcade',
@@ -36,4 +42,9 @@ const config: Phaser.Types.Core.GameConfig = {
   scene: [MainScene]
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+
+// Log renderer type for debugging
+game.events.once('ready', () => {
+  console.log('Phaser renderer:', game.renderer.type === Phaser.WEBGL ? 'WebGL' : 'Canvas');
+});

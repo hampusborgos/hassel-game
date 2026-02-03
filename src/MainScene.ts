@@ -12,6 +12,7 @@ import { CollectibleManager } from './collectibles';
 import { selectWeapon } from './shop';
 import { createHUD, updateScore, updateWave } from './ui';
 import { GameOverOverlay, ShopOverlay } from './overlays';
+import { generateBitmapFont, UI_FONT_KEY } from './bitmapFont';
 
 export class MainScene extends Phaser.Scene {
   private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -50,11 +51,11 @@ export class MainScene extends Phaser.Scene {
   private currentWeapon: WeaponType = 'default';
 
   // UI
-  private scoreText!: Phaser.GameObjects.Text;
-  private coinText!: Phaser.GameObjects.Text;
-  private waveText!: Phaser.GameObjects.Text;
+  private scoreText!: Phaser.GameObjects.BitmapText;
+  private coinText!: Phaser.GameObjects.BitmapText;
+  private waveText!: Phaser.GameObjects.BitmapText;
   private shieldBubble!: Phaser.GameObjects.Sprite;
-  private hintText!: Phaser.GameObjects.Text | null;
+  private hintText!: Phaser.GameObjects.BitmapText | null;
   private cleanupPresence!: () => void;
 
   // Mobile
@@ -120,6 +121,9 @@ export class MainScene extends Phaser.Scene {
   }
 
   create() {
+    // Generate bitmap font for iOS performance (avoids multiple canvas compositing)
+    generateBitmapFont(this);
+
     // Convert SVGs to bitmaps for iOS performance
     this.convertSvgsToBitmaps();
 
@@ -133,15 +137,15 @@ export class MainScene extends Phaser.Scene {
     // Set up infinite world bounds
     this.physics.world.setBounds(-10000, -10000, 20000, 20000);
 
-    // Create groups
+    // Create groups (runChildUpdate: false prevents per-child preUpdate calls)
     this.trees = this.add.group();
     this.jumps = this.physics.add.staticGroup();
     this.holes = this.physics.add.staticGroup();
-    this.bullets = this.physics.add.group({ defaultKey: 'bullet', maxSize: 30 });
-    this.zombies = this.physics.add.group();
-    this.coins = this.physics.add.group();
-    this.shields = this.physics.add.group();
-    this.robots = this.physics.add.group();
+    this.bullets = this.physics.add.group({ defaultKey: 'bullet', maxSize: 30, runChildUpdate: false });
+    this.zombies = this.physics.add.group({ runChildUpdate: false });
+    this.coins = this.physics.add.group({ runChildUpdate: false });
+    this.shields = this.physics.add.group({ runChildUpdate: false });
+    this.robots = this.physics.add.group({ runChildUpdate: false });
 
     // Create world manager and spawn initial terrain
     this.worldManager = new WorldManager(this, this.trees, this.jumps, this.holes);
@@ -203,10 +207,11 @@ export class MainScene extends Phaser.Scene {
       this.rightJoystick = joysticks.rightJoystick;
       this.hintText = null;
     } else {
-      this.hintText = this.add.text(this.scale.width / 2, this.scale.height - 20, 'WASD/Arrows to move, Click to shoot', {
-        fontSize: '14px',
-        color: '#666666'
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH.HUD);
+      this.hintText = this.add.bitmapText(this.scale.width / 2, this.scale.height - 20, UI_FONT_KEY, 'WASD/Arrows to move, Click to shoot', 14)
+        .setTint(0x666666)
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(DEPTH.HUD);
     }
 
     // Initialize HTML overlays

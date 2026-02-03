@@ -12,7 +12,7 @@ export class CollectibleManager {
   public hasShield = false;
   public shieldDroppedBeforeWave3 = false;
 
-  private coinText: Phaser.GameObjects.Text;
+  private coinText: Phaser.GameObjects.BitmapText;
 
   constructor(
     scene: Phaser.Scene,
@@ -20,7 +20,7 @@ export class CollectibleManager {
     shields: Phaser.Physics.Arcade.Group,
     shieldBubble: Phaser.GameObjects.Sprite,
     initialCoinCount: number,
-    coinText: Phaser.GameObjects.Text
+    coinText: Phaser.GameObjects.BitmapText
   ) {
     this.scene = scene;
     this.coins = coins;

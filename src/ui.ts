@@ -5,11 +5,12 @@ import {
   subscribeToActivePlayers,
   ActivePlayer,
 } from './database';
+import { UI_FONT_KEY } from './bitmapFont';
 
 export interface HUDElements {
-  scoreText: Phaser.GameObjects.Text;
-  coinText: Phaser.GameObjects.Text;
-  waveText: Phaser.GameObjects.Text;
+  scoreText: Phaser.GameObjects.BitmapText;
+  coinText: Phaser.GameObjects.BitmapText;
+  waveText: Phaser.GameObjects.BitmapText;
   cleanupPresence: () => void;
 }
 
@@ -17,20 +18,21 @@ export function createHUD(
   scene: Phaser.Scene,
   initialCoinCount: number
 ): HUDElements {
-  const scoreText = scene.add.text(16, 16, 'Score: 0', {
-    fontSize: '24px',
-    color: '#333333'
-  }).setScrollFactor(0).setDepth(DEPTH.HUD);
+  const scoreText = scene.add.bitmapText(16, 16, UI_FONT_KEY, 'Score: 0', 24)
+    .setTint(0x333333)
+    .setScrollFactor(0)
+    .setDepth(DEPTH.HUD);
 
-  const coinText = scene.add.text(16, 46, `Coins: ${initialCoinCount}`, {
-    fontSize: '20px',
-    color: '#b45309'
-  }).setScrollFactor(0).setDepth(DEPTH.HUD);
+  const coinText = scene.add.bitmapText(16, 46, UI_FONT_KEY, `Coins: ${initialCoinCount}`, 20)
+    .setTint(0xb45309)
+    .setScrollFactor(0)
+    .setDepth(DEPTH.HUD);
 
-  const waveText = scene.add.text(scene.scale.width - 16, 16, 'Wave 1', {
-    fontSize: '24px',
-    color: '#333333'
-  }).setOrigin(1, 0).setScrollFactor(0).setDepth(DEPTH.HUD);
+  const waveText = scene.add.bitmapText(scene.scale.width - 16, 16, UI_FONT_KEY, 'Wave 1', 24)
+    .setTint(0x333333)
+    .setOrigin(1, 0)
+    .setScrollFactor(0)
+    .setDepth(DEPTH.HUD);
 
   // Active players presence display (below wave text, horizontal stack)
   const avatarSize = 28;
@@ -94,15 +96,13 @@ export function createHUD(
 
     // If no players with avatars, show a subtle indicator
     if (playersWithAvatars.length === 0 && players.length > 0) {
-      const countText = scene.add.text(
+      const countText = scene.add.bitmapText(
         startX,
         avatarY + avatarSize / 2,
+        UI_FONT_KEY,
         `${players.length} online`,
-        {
-          fontSize: '12px',
-          color: '#666666'
-        }
-      ).setOrigin(1, 0.5).setScrollFactor(0).setDepth(DEPTH.HUD);
+        12
+      ).setTint(0x666666).setOrigin(1, 0.5).setScrollFactor(0).setDepth(DEPTH.HUD);
       avatarElements.push(countText);
     }
   };
@@ -124,10 +124,10 @@ export function createHUD(
   return { scoreText, coinText, waveText, cleanupPresence };
 }
 
-export function updateScore(scoreText: Phaser.GameObjects.Text, score: number): void {
+export function updateScore(scoreText: Phaser.GameObjects.BitmapText, score: number): void {
   scoreText.setText(`Score: ${score}`);
 }
 
-export function updateWave(waveText: Phaser.GameObjects.Text, waveNumber: number): void {
+export function updateWave(waveText: Phaser.GameObjects.BitmapText, waveNumber: number): void {
   waveText.setText(`Wave ${waveNumber}`);
 }
