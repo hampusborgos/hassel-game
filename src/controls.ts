@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { VirtualJoystick } from './types';
 import { JOYSTICK_RADIUS, THUMB_RADIUS, DEPTH } from './constants';
+import { UI_FONT_KEY } from './bitmapFont';
 
 export function createMobileControls(scene: Phaser.Scene): {
   leftJoystick: VirtualJoystick;
@@ -48,14 +49,20 @@ export function createMobileControls(scene: Phaser.Scene): {
     (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
 
   if (!isStandalone) {
-    const fsButton = scene.add.text(scene.scale.width / 2, 50, '[ Fullscreen ]', {
-      fontSize: '20px',
-      color: '#333333',
-      backgroundColor: '#cccccc',
-      padding: { x: 15, y: 10 }
-    }).setOrigin(0.5).setInteractive().setDepth(DEPTH.HUD).setScrollFactor(0);
+    // Create background rectangle for the button
+    const buttonBg = scene.add.rectangle(scene.scale.width / 2, 50, 160, 40, 0xcccccc)
+      .setOrigin(0.5)
+      .setDepth(DEPTH.HUD)
+      .setScrollFactor(0)
+      .setInteractive();
 
-    fsButton.on('pointerdown', () => {
+    const fsButton = scene.add.bitmapText(scene.scale.width / 2, 50, UI_FONT_KEY, '[ Fullscreen ]', 20)
+      .setTint(0x333333)
+      .setOrigin(0.5)
+      .setDepth(DEPTH.HUD + 1)
+      .setScrollFactor(0);
+
+    buttonBg.on('pointerdown', () => {
       if (scene.scale.isFullscreen) {
         scene.scale.stopFullscreen();
       } else {
