@@ -2,15 +2,16 @@ import Phaser from 'phaser';
 import { VirtualJoystick, WeaponType } from './types';
 import { PLAYER_SPEED, PLAYER_SPEED_DOWN_BONUS, ROBOT_FIRST_WAVE, DEPTH } from './constants';
 import { initAudio, playHit, playJump, playLand, playStuckInHole, playWaveComplete } from './sfxr';
-import { loadCoins, loadOwnedWeapons, loadSelectedWeapon, saveCoins, saveOwnedWeapons, saveSelectedWeapon } from './persistence';
+import { loadCoins, loadOwnedWeapons, loadSelectedWeapon, saveOwnedWeapons } from './persistence';
 import { createMobileControls } from './controls';
 import { createExplosion, createShieldBreakEffect, createHoleSmokeEffect } from './effects';
 import { WorldManager } from './world';
 import { EnemyManager } from './enemies';
 import { WeaponSystem } from './weapons';
 import { CollectibleManager } from './collectibles';
-import { Shop, selectWeapon } from './shop';
-import { showGameOver, createHUD, updateScore, updateWave, HUDElements } from './ui';
+import { selectWeapon } from './shop';
+import { createHUD, updateScore, updateWave } from './ui';
+import { GameOverOverlay, ShopOverlay } from './overlays';
 
 export class MainScene extends Phaser.Scene {
   private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -60,6 +61,10 @@ export class MainScene extends Phaser.Scene {
   private isMobile = false;
   private leftJoystick!: VirtualJoystick;
   private rightJoystick!: VirtualJoystick;
+
+  // Overlays
+  private gameOverOverlay!: GameOverOverlay;
+  private shopOverlay!: ShopOverlay;
 
   constructor() {
     super('MainScene');
@@ -167,6 +172,10 @@ export class MainScene extends Phaser.Scene {
         color: '#666666'
       }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH.HUD);
     }
+
+    // Initialize HTML overlays
+    this.gameOverOverlay = new GameOverOverlay();
+    this.shopOverlay = new ShopOverlay();
 
     // Periodically update zombie directions
     this.time.addEvent({
@@ -781,28 +790,28 @@ export class MainScene extends Phaser.Scene {
     if (this.hintText) {
       this.hintText.setVisible(false);
     }
-    showGameOver(
-      this,
-      this.score,
-      this.collectibleManager.coinCount,
-      this.isMobile,
-      (onShopClose) => this.showShop(onShopClose),
-      () => this.restartGame()
-    );
+    this.physics.pause();
+
+    this.gameOverOverlay.show({
+      score: this.score,
+      coinCount: this.collectibleManager.coinCount,
+      isMobile: this.isMobile,
+      onShop: () => this.showShop(),
+      onRestart: () => this.restartGame()
+    });
   }
 
-  private showShop(onShopClose: () => void) {
-    const shop = new Shop(
-      this,
-      this.collectibleManager.coinCount,
-      this.ownedWeapons,
-      this.currentWeapon,
-      (weapon) => {
+  private showShop() {
+    this.shopOverlay.show({
+      coinCount: this.collectibleManager.coinCount,
+      ownedWeapons: this.ownedWeapons,
+      currentWeapon: this.currentWeapon,
+      onWeaponSelect: (weapon) => {
         selectWeapon(weapon, this.ownedWeapons);
         this.currentWeapon = weapon;
         this.weaponSystem.setWeapon(weapon);
       },
-      (weapon, cost) => {
+      onWeaponBuy: (weapon, cost) => {
         if (this.collectibleManager.spendCoins(cost)) {
           this.ownedWeapons.push(weapon);
           saveOwnedWeapons(this.ownedWeapons);
@@ -810,9 +819,17 @@ export class MainScene extends Phaser.Scene {
         }
         return false;
       },
-      onShopClose
-    );
-    shop.show();
+      onClose: () => {
+        // Show game over overlay again when closing shop
+        this.gameOverOverlay.show({
+          score: this.score,
+          coinCount: this.collectibleManager.coinCount,
+          isMobile: this.isMobile,
+          onShop: () => this.showShop(),
+          onRestart: () => this.restartGame()
+        });
+      }
+    });
   }
 
   private restartGame() {
@@ -828,6 +845,9 @@ export class MainScene extends Phaser.Scene {
     if (this.cleanupPresence) {
       this.cleanupPresence();
     }
+    // Hide HTML overlays
+    this.gameOverOverlay.hide();
+    this.shopOverlay.hide();
     this.scene.restart();
   }
 
