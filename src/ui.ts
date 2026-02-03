@@ -10,8 +10,11 @@ import {
   uploadAvatar,
   getLocalAvatarUrl,
   subscribeToCurrentPlayer,
+  subscribeToActivePlayers,
+  publishPresence,
   HighScore,
   Player,
+  ActivePlayer,
 } from './database';
 
 export function showGameOver(
@@ -112,15 +115,12 @@ export function showGameOver(
   const avatarX = centerX - cardWidth / 2 + 15 * scale + avatarSize / 2;
   const avatarY = currentY + cardHeight / 2;
 
-  const avatarBg = scene.add.circle(avatarX, avatarY, avatarSize / 2, 0x555555)
+  const avatarBg = scene.add.rectangle(avatarX, avatarY, avatarSize, avatarSize, 0x555555)
     .setScrollFactor(0).setDepth(DEPTH.OVERLAY_UI);
   uiElements.push(avatarBg);
 
   let avatarImage: Phaser.GameObjects.Image | null = null;
   let currentAvatarUrl = getLocalAvatarUrl();
-
-  // Create a reusable circle mask shape for avatars
-  let avatarMaskImage: Phaser.GameObjects.Graphics | null = null;
 
   // Load avatar if exists
   const loadAvatar = (url: string | null | undefined) => {
@@ -128,38 +128,17 @@ export function showGameOver(
       avatarImage.destroy();
       avatarImage = null;
     }
-    if (avatarMaskImage) {
-      avatarMaskImage.destroy();
-      avatarMaskImage = null;
-    }
     if (url) {
       const textureKey = `avatar_${Date.now()}`;
       scene.load.image(textureKey, url);
       scene.load.once('complete', () => {
         if (scene.textures.exists(textureKey)) {
-          // Create the avatar image
           avatarImage = scene.add.image(avatarX, avatarY, textureKey)
             .setDisplaySize(avatarSize - 4, avatarSize - 4)
             .setScrollFactor(0)
             .setDepth(DEPTH.OVERLAY_INTERACTIVE);
-
-          // Create bitmap mask - draw a filled circle as a Graphics object
-          // Position it relative to camera for proper masking with scrollFactor(0)
-          avatarMaskImage = scene.add.graphics();
-          avatarMaskImage.setScrollFactor(0);
-          avatarMaskImage.fillStyle(0xffffff);
-          avatarMaskImage.fillCircle(avatarX, avatarY, (avatarSize - 4) / 2);
-
-          // Create and apply bitmap mask
-          const mask = avatarMaskImage.createBitmapMask();
-          avatarImage.setMask(mask);
-
           uiElements.push(avatarImage);
-          uiElements.push(avatarMaskImage);
         }
-      });
-      scene.load.once('loaderror', (file: Phaser.Loader.File) => {
-        console.error('Failed to load avatar image:', file.key, file.url);
       });
       scene.load.start();
     }
@@ -242,7 +221,7 @@ export function showGameOver(
   currentY += cardHeight + padding * 1.5;
 
   // Global High Scores header
-  const hsHeader = scene.add.text(centerX, currentY, 'GLOBAL HIGH SCORES', {
+  const hsHeader = scene.add.text(centerX, currentY, 'HIGH SCORE', {
     fontSize: `${textSize}px`,
     color: '#cccccc'
   }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(DEPTH.OVERLAY_UI);
@@ -287,9 +266,9 @@ export function showGameOver(
       highScoreTexts.push(rankText);
       uiElements.push(rankText);
 
-      // Avatar circle background
-      const avatarX = listLeft + 30 * scale;
-      const avatarBg = scene.add.circle(avatarX, y + rowHeight / 2, avatarSize / 2, 0x444444)
+      // Avatar background
+      const avatarX = listLeft + 35 * scale;
+      const avatarBg = scene.add.rectangle(avatarX, y + rowHeight / 2 - 7, avatarSize, avatarSize, 0x444444)
         .setScrollFactor(0).setDepth(DEPTH.OVERLAY_UI);
       highScoreAvatars.push(avatarBg);
       uiElements.push(avatarBg);
@@ -305,16 +284,8 @@ export function showGameOver(
               .setDisplaySize(avatarSize - 2, avatarSize - 2)
               .setScrollFactor(0)
               .setDepth(DEPTH.OVERLAY_INTERACTIVE);
-            // Bitmap mask for proper scrollFactor(0) support
-            const maskGfx = scene.add.graphics();
-            maskGfx.setScrollFactor(0);
-            maskGfx.fillStyle(0xffffff);
-            maskGfx.fillCircle(avatarX, hsAvatarY, (avatarSize - 2) / 2);
-            avatarImg.setMask(maskGfx.createBitmapMask());
             highScoreAvatars.push(avatarImg);
-            highScoreAvatars.push(maskGfx);
             uiElements.push(avatarImg);
-            uiElements.push(maskGfx);
           }
         });
         scene.load.start();
@@ -395,10 +366,17 @@ export function showGameOver(
   }
 }
 
+export interface HUDElements {
+  scoreText: Phaser.GameObjects.Text;
+  coinText: Phaser.GameObjects.Text;
+  waveText: Phaser.GameObjects.Text;
+  cleanupPresence: () => void;
+}
+
 export function createHUD(
   scene: Phaser.Scene,
   initialCoinCount: number
-): { scoreText: Phaser.GameObjects.Text; coinText: Phaser.GameObjects.Text; waveText: Phaser.GameObjects.Text } {
+): HUDElements {
   const scoreText = scene.add.text(16, 16, 'Score: 0', {
     fontSize: '24px',
     color: '#333333'
@@ -414,7 +392,96 @@ export function createHUD(
     color: '#333333'
   }).setOrigin(1, 0).setScrollFactor(0).setDepth(DEPTH.HUD);
 
-  return { scoreText, coinText, waveText };
+  // Active players presence display (below wave text, horizontal stack)
+  const avatarSize = 28;
+  const avatarGap = 4;
+  const avatarY = 46;
+  const avatarElements: Phaser.GameObjects.GameObject[] = [];
+  const loadedTextures: string[] = [];
+
+  // Publish own presence
+  publishPresence();
+
+  const updateActivePlayersDisplay = (players: ActivePlayer[]) => {
+    // Clear existing avatar elements
+    avatarElements.forEach(el => el.destroy());
+    avatarElements.length = 0;
+
+    // Calculate starting X position (right-aligned from wave text)
+    const startX = scene.scale.width - 16;
+    let currentX = startX;
+
+    // Show avatars for players who have them (limit to 8 to avoid overflow)
+    const playersWithAvatars = players
+      .filter(p => p.presence.avatarUrl)
+      .slice(0, 8);
+
+    for (let i = 0; i < playersWithAvatars.length; i++) {
+      const player = playersWithAvatars[i];
+      const avatarUrl = player.presence.avatarUrl!;
+
+      // Avatar background - highlight current user with a different color
+      const bgColor = player.isCurrentUser ? 0x4488ff : 0x444444;
+      const avatarBg = scene.add.rectangle(
+        currentX - avatarSize / 2,
+        avatarY + avatarSize / 2,
+        avatarSize,
+        avatarSize,
+        bgColor,
+        0.8
+      ).setScrollFactor(0).setDepth(DEPTH.HUD);
+      avatarElements.push(avatarBg);
+
+      // Load and display avatar image
+      const textureKey = `presence_avatar_${player.oddjobId}_${Date.now()}`;
+      loadedTextures.push(textureKey);
+
+      const avatarX = currentX - avatarSize / 2;
+      scene.load.image(textureKey, avatarUrl);
+      scene.load.once('complete', () => {
+        if (scene.textures.exists(textureKey)) {
+          const avatarImg = scene.add.image(avatarX, avatarY + avatarSize / 2, textureKey)
+            .setDisplaySize(avatarSize - 2, avatarSize - 2)
+            .setScrollFactor(0)
+            .setDepth(DEPTH.HUD + 1);
+          avatarElements.push(avatarImg);
+        }
+      });
+      scene.load.start();
+
+      currentX -= avatarSize + avatarGap;
+    }
+
+    // If no players with avatars, show a subtle indicator
+    if (playersWithAvatars.length === 0 && players.length > 0) {
+      const countText = scene.add.text(
+        startX,
+        avatarY + avatarSize / 2,
+        `${players.length} online`,
+        {
+          fontSize: '12px',
+          color: '#666666'
+        }
+      ).setOrigin(1, 0.5).setScrollFactor(0).setDepth(DEPTH.HUD);
+      avatarElements.push(countText);
+    }
+  };
+
+  // Subscribe to active players
+  const unsubPresence = subscribeToActivePlayers(updateActivePlayersDisplay);
+
+  const cleanupPresence = () => {
+    unsubPresence();
+    avatarElements.forEach(el => el.destroy());
+    // Clean up loaded textures
+    loadedTextures.forEach(key => {
+      if (scene.textures.exists(key)) {
+        scene.textures.remove(key);
+      }
+    });
+  };
+
+  return { scoreText, coinText, waveText, cleanupPresence };
 }
 
 export function updateScore(scoreText: Phaser.GameObjects.Text, score: number): void {

@@ -10,7 +10,7 @@ import { EnemyManager } from './enemies';
 import { WeaponSystem } from './weapons';
 import { CollectibleManager } from './collectibles';
 import { Shop, selectWeapon } from './shop';
-import { showGameOver, createHUD, updateScore, updateWave } from './ui';
+import { showGameOver, createHUD, updateScore, updateWave, HUDElements } from './ui';
 
 export class MainScene extends Phaser.Scene {
   private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -54,6 +54,7 @@ export class MainScene extends Phaser.Scene {
   private waveText!: Phaser.GameObjects.Text;
   private shieldBubble!: Phaser.GameObjects.Sprite;
   private hintText!: Phaser.GameObjects.Text | null;
+  private cleanupPresence!: () => void;
 
   // Mobile
   private isMobile = false;
@@ -130,6 +131,7 @@ export class MainScene extends Phaser.Scene {
     this.scoreText = hud.scoreText;
     this.coinText = hud.coinText;
     this.waveText = hud.waveText;
+    this.cleanupPresence = hud.cleanupPresence;
 
     // Create shield bubble (hidden initially)
     this.shieldBubble = this.add.sprite(0, 0, 'bubble');
@@ -693,6 +695,9 @@ export class MainScene extends Phaser.Scene {
     this.robotBurstCount = 0;
     this.robotCooldown = false;
     this.weaponSystem.setCanShoot(true);
+    if (this.cleanupPresence) {
+      this.cleanupPresence();
+    }
     this.scene.restart();
   }
 
