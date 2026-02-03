@@ -150,6 +150,8 @@ export class MainScene extends Phaser.Scene {
     // Create player
     this.player = this.physics.add.sprite(this.scale.width / 2, this.scale.height / 2, 'player');
     this.player.setDepth(DEPTH.PLAYER);
+    this.player.body.setSize(36, 36); // 25% smaller hitbox (48 * 0.75)
+    this.player.body.setOffset(6, 6); // Center the hitbox
 
     // Camera follows player
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);

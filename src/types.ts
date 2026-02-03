@@ -9,7 +9,7 @@ export interface VirtualJoystick {
   baseY: number;
 }
 
-export type WeaponType = 'default' | 'double-barrel' | 'burst-shot' | 'railgun' | 'rubber';
+export type WeaponType = 'default' | 'double-barrel' | 'burst-shot' | 'railgun' | 'rubber' | 'machinegun';
 
 export interface WeaponInfo {
   name: string;
