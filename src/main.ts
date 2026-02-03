@@ -5,6 +5,16 @@ import { MainScene } from './MainScene';
 function getGameDimensions() {
   const isMobile = 'ontouchstart' in window && window.innerWidth <= 1024;
   const isPortrait = window.innerHeight > window.innerWidth;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  // Use reduced resolution on iOS for performance
+  if (isIOS) {
+    if (isPortrait) {
+      // Portrait: game rotated 90deg, so swap width/height
+      return { width: 600, height: 450 };
+    }
+    return { width: 600, height: 450 };
+  }
 
   if (isMobile && isPortrait) {
     // In portrait mode, game will be rotated 90deg by CSS
