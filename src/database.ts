@@ -413,3 +413,100 @@ export function subscribeToPersonalBest(
 
 // Re-export id for convenience
 export { id };
+
+// ============================================
+// Presence / Room API for active players
+// ============================================
+
+export interface PresenceData {
+  name: string;
+  avatarUrl?: string | null;
+  playerId: string;
+}
+
+export interface ActivePlayer {
+  oddjobId: string;
+  presence: PresenceData;
+  isCurrentUser: boolean;
+}
+
+const ROOM_ID = 'hasselgame-lobby';
+const ROOM_TYPE = 'game-room';
+
+// Room handle type for presence
+interface RoomHandle {
+  publishPresence: (data: PresenceData) => void;
+  subscribePresence: (
+    opts: Record<string, unknown>,
+    callback: (data: { user?: PresenceData; peers?: Record<string, PresenceData> }) => void
+  ) => () => void;
+  leaveRoom: () => void;
+}
+
+// Get the room for presence (cast to any to access joinRoom without schema typing)
+function getGameRoom(): RoomHandle {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (dbRaw as any).joinRoom(ROOM_TYPE, ROOM_ID);
+}
+
+// Publish current player presence
+export async function publishPresence(): Promise<void> {
+  const player = await ensurePlayer();
+  const room = getGameRoom();
+
+  room.publishPresence({
+    name: player?.name || getLocalPlayerName(),
+    avatarUrl: player?.avatarUrl || getLocalAvatarUrl(),
+    playerId: player?.id || getPlayerToken(),
+  });
+}
+
+// Subscribe to active players in the room (includes self and peers)
+export function subscribeToActivePlayers(
+  callback: (players: ActivePlayer[]) => void
+): () => void {
+  const room = getGameRoom();
+  let currentUser: { oddjobId: string; presence: PresenceData } | null = null;
+  let peers: Map<string, PresenceData> = new Map();
+
+  const emitUpdate = () => {
+    const allPlayers: ActivePlayer[] = [];
+
+    // Add current user first
+    if (currentUser) {
+      allPlayers.push({
+        oddjobId: currentUser.oddjobId,
+        presence: currentUser.presence,
+        isCurrentUser: true,
+      });
+    }
+
+    // Add peers
+    for (const [oddjobId, presence] of peers.entries()) {
+      allPlayers.push({
+        oddjobId,
+        presence,
+        isCurrentUser: false,
+      });
+    }
+
+    callback(allPlayers);
+  };
+
+  const unsubPresence = room.subscribePresence({}, (data) => {
+    if (data.user) {
+      currentUser = {
+        oddjobId: 'self',
+        presence: data.user,
+      };
+    }
+    if (data.peers) {
+      peers = new Map(
+        Object.entries(data.peers).map(([id, presence]) => [id, presence])
+      );
+    }
+    emitUpdate();
+  });
+
+  return unsubPresence;
+}
