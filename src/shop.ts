@@ -11,6 +11,7 @@ export class Shop {
   private currentWeapon: WeaponType;
   private onWeaponSelect: (weapon: WeaponType) => void;
   private onWeaponBuy: (weapon: WeaponType, cost: number) => boolean;
+  private onClose: () => void;
 
   constructor(
     scene: Phaser.Scene,
@@ -18,7 +19,8 @@ export class Shop {
     ownedWeapons: WeaponType[],
     currentWeapon: WeaponType,
     onWeaponSelect: (weapon: WeaponType) => void,
-    onWeaponBuy: (weapon: WeaponType, cost: number) => boolean
+    onWeaponBuy: (weapon: WeaponType, cost: number) => boolean,
+    onClose: () => void
   ) {
     this.scene = scene;
     this.coinCount = coinCount;
@@ -26,30 +28,31 @@ export class Shop {
     this.currentWeapon = currentWeapon;
     this.onWeaponSelect = onWeaponSelect;
     this.onWeaponBuy = onWeaponBuy;
+    this.onClose = onClose;
   }
 
   show(): void {
     const centerX = this.scene.scale.width / 2;
     const centerY = this.scene.scale.height / 2;
 
-    const overlay = this.scene.add.rectangle(centerX, centerY, 700, 500, 0x000000, 0.9);
+    const overlay = this.scene.add.rectangle(centerX, centerY, 700, 700, 0x000000, 0.9);
     overlay.setScrollFactor(0).setDepth(DEPTH.OVERLAY_BG);
     this.elements.push(overlay);
 
-    const title = this.scene.add.text(centerX, centerY - 220, 'WEAPON SHOP', {
+    const title = this.scene.add.text(centerX, centerY - 320, 'WEAPON SHOP', {
       fontSize: '36px',
       color: '#ffffff'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH.OVERLAY_UI);
     this.elements.push(title);
 
-    const coinsDisplay = this.scene.add.text(centerX, centerY - 180, `Your coins: ${this.coinCount}`, {
+    const coinsDisplay = this.scene.add.text(centerX, centerY - 280, `Your coins: ${this.coinCount}`, {
       fontSize: '20px',
       color: '#fbbf24'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH.OVERLAY_UI);
     this.elements.push(coinsDisplay);
 
-    const weapons: WeaponType[] = ['default', 'double-barrel', 'burst-shot'];
-    let yPos = centerY - 120;
+    const weapons: WeaponType[] = ['default', 'double-barrel', 'rubber', 'burst-shot', 'railgun'];
+    let yPos = centerY - 220;
 
     weapons.forEach((weaponKey) => {
       const weapon = WEAPONS[weaponKey];
@@ -128,7 +131,7 @@ export class Shop {
       yPos += 100;
     });
 
-    const closeBtn = this.scene.add.text(centerX, centerY + 220, '[ CLOSE ]', {
+    const closeBtn = this.scene.add.text(centerX, centerY + 320, '[ CLOSE ]', {
       fontSize: '24px',
       color: '#333333',
       backgroundColor: '#cccccc',
@@ -138,6 +141,7 @@ export class Shop {
 
     closeBtn.on('pointerdown', () => {
       this.close();
+      this.onClose();
     });
   }
 

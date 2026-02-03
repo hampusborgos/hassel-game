@@ -308,7 +308,9 @@ export class EnemyManager {
     const robot = this.robots.create(x, y, 'robot') as Phaser.Physics.Arcade.Sprite;
     robot.setDepth(y);
     robot.setData('health', 4);
+    robot.setData('maxHealth', 4);
     robot.setData('points', 75);
+    robot.setData('isRobot', true);
 
     robot.setData('angle', angle);
     robot.rotation = angle + Math.PI / 2;

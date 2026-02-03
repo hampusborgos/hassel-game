@@ -119,6 +119,8 @@ export class MainScene extends Phaser.Scene {
     // Create managers
     this.enemyManager = new EnemyManager(this, this.zombies, this.robots, this.player);
     this.weaponSystem = new WeaponSystem(this, this.bullets, this.player);
+    this.weaponSystem.setEnemyGroups(this.zombies, this.robots);
+    this.weaponSystem.setRailgunHitCallback((target, damage) => this.handleRailgunHit(target, damage));
 
     // Load persistence data
     const initialCoinCount = loadCoins();
@@ -513,8 +515,18 @@ export class MainScene extends Phaser.Scene {
     const b = bullet as Phaser.Physics.Arcade.Sprite;
     const z = zombie as Phaser.Physics.Arcade.Sprite;
 
-    b.setActive(false);
-    b.setVisible(false);
+    // Skip if this rubber bullet just hit this target
+    if (b.getData('lastHitTarget') === z) return;
+
+    const isRubberBullet = b.getData('isRubberBullet');
+
+    if (isRubberBullet) {
+      // Rubber bullets bounce off in a random direction
+      this.bounceBullet(b, z);
+    } else {
+      b.setActive(false);
+      b.setVisible(false);
+    }
     playHit();
 
     const health = z.getData('health') - 1;
@@ -598,8 +610,18 @@ export class MainScene extends Phaser.Scene {
     const b = bullet as Phaser.Physics.Arcade.Sprite;
     const r = robot as Phaser.Physics.Arcade.Sprite;
 
-    b.setActive(false);
-    b.setVisible(false);
+    // Skip if this rubber bullet just hit this target
+    if (b.getData('lastHitTarget') === r) return;
+
+    const isRubberBullet = b.getData('isRubberBullet');
+
+    if (isRubberBullet) {
+      // Rubber bullets bounce off in a random direction
+      this.bounceBullet(b, r);
+    } else {
+      b.setActive(false);
+      b.setVisible(false);
+    }
     playHit();
 
     const health = r.getData('health') - 1;
@@ -620,6 +642,113 @@ export class MainScene extends Phaser.Scene {
       r.setTintFill(0xffffff);
       this.time.delayedCall(50, () => {
         if (r.active) r.clearTint();
+      });
+    }
+  }
+
+  private bounceBullet(bullet: Phaser.Physics.Arcade.Sprite, target: Phaser.Physics.Arcade.Sprite): void {
+    // Calculate bounce direction - reflect off the target with some randomness
+    const currentVelX = bullet.body?.velocity.x || 0;
+    const currentVelY = bullet.body?.velocity.y || 0;
+    const currentSpeed = Math.sqrt(currentVelX * currentVelX + currentVelY * currentVelY);
+
+    // Get angle from bullet to target, then bounce in opposite direction with spread
+    const angleToTarget = Math.atan2(target.y - bullet.y, target.x - bullet.x);
+    const bounceAngle = angleToTarget + Math.PI + Phaser.Math.FloatBetween(-0.8, 0.8);
+
+    // Move bullet slightly away from target to prevent immediate re-collision
+    bullet.x = target.x - Math.cos(angleToTarget) * 30;
+    bullet.y = target.y - Math.sin(angleToTarget) * 30;
+
+    // Set new velocity in bounce direction
+    bullet.setVelocity(
+      Math.cos(bounceAngle) * currentSpeed,
+      Math.sin(bounceAngle) * currentSpeed
+    );
+    bullet.rotation = bounceAngle + Math.PI / 2;
+
+    // Brief invulnerability to prevent hitting same target twice
+    const originalTarget = target;
+    bullet.setData('lastHitTarget', originalTarget);
+    this.time.delayedCall(100, () => {
+      if (bullet.active) {
+        bullet.setData('lastHitTarget', null);
+      }
+    });
+  }
+
+  private handleRailgunHit(target: Phaser.Physics.Arcade.Sprite, damage: number) {
+    if (!target.active) return;
+
+    playHit();
+
+    const health = target.getData('health') - damage;
+    target.setData('health', health);
+    const isBoss = target.getData('isBoss');
+    const isRobot = target.getData('isRobot');
+
+    if (health <= 0) {
+      const points = target.getData('points') || (isRobot ? 75 : 10);
+      this.score += points;
+      updateScore(this.scoreText, this.score);
+
+      if (isBoss) {
+        // Boss death - spawn coins and explosions
+        const coinCount = Phaser.Math.Between(5, 10);
+        for (let i = 0; i < coinCount; i++) {
+          this.time.delayedCall(i * 100, () => {
+            const offsetX = Phaser.Math.Between(-50, 50);
+            const offsetY = Phaser.Math.Between(-50, 50);
+            this.collectibleManager.spawnCoin(target.x + offsetX, target.y + offsetY);
+          });
+        }
+        for (let i = 0; i < 5; i++) {
+          this.time.delayedCall(i * 50, () => {
+            const offsetX = Phaser.Math.Between(-40, 40);
+            const offsetY = Phaser.Math.Between(-40, 40);
+            createExplosion(this, target.x + offsetX, target.y + offsetY);
+          });
+        }
+        // Clean up boss health bar
+        const healthBarBg = target.getData('healthBarBg') as Phaser.GameObjects.Rectangle;
+        const healthBarFg = target.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
+        if (healthBarBg) healthBarBg.destroy();
+        if (healthBarFg) healthBarFg.destroy();
+      } else if (!isRobot) {
+        // Regular zombie - chance to drop coin if red zombie
+        const maxHealth = target.getData('maxHealth') || 1;
+        if (maxHealth > 1 && Math.random() < 0.35) {
+          this.collectibleManager.spawnCoin(target.x, target.y);
+        }
+        this.collectibleManager.tryDropShield(target.x, target.y, this.waveNumber);
+      }
+
+      createExplosion(this, target.x, target.y);
+      target.destroy();
+    } else {
+      // Flash white then show damage
+      target.setTintFill(0xffffff);
+      this.time.delayedCall(50, () => {
+        if (target.active) {
+          const maxHealth = target.getData('maxHealth');
+          const damageRatio = health / maxHealth;
+
+          if (isBoss) {
+            const brightness = Math.floor(0x88 + (0x77 * damageRatio));
+            target.setTint((brightness << 16) | (brightness << 8) | brightness);
+            const healthBarFg = target.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
+            const barWidth = target.getData('healthBarWidth') as number;
+            if (healthBarFg && barWidth) {
+              healthBarFg.width = barWidth * damageRatio;
+            }
+          } else if (maxHealth > 1 && !isRobot) {
+            const red = Math.floor(0xff * damageRatio);
+            const tint = (red << 16) | 0x4444;
+            target.setTint(tint);
+          } else {
+            target.clearTint();
+          }
+        }
       });
     }
   }
@@ -657,12 +786,12 @@ export class MainScene extends Phaser.Scene {
       this.score,
       this.collectibleManager.coinCount,
       this.isMobile,
-      () => this.showShop(),
+      (onShopClose) => this.showShop(onShopClose),
       () => this.restartGame()
     );
   }
 
-  private showShop() {
+  private showShop(onShopClose: () => void) {
     const shop = new Shop(
       this,
       this.collectibleManager.coinCount,
@@ -680,7 +809,8 @@ export class MainScene extends Phaser.Scene {
           return true;
         }
         return false;
-      }
+      },
+      onShopClose
     );
     shop.show();
   }
