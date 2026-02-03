@@ -7,6 +7,8 @@ export const PLAYER_SPEED_DOWN_BONUS = 150;
 // Shooting
 export const BULLET_SPEED = 600;
 export const SHOOT_COOLDOWN = 150;
+export const RAILGUN_COOLDOWN = 375; // 2.5x slower than standard
+export const RAILGUN_DAMAGE = 5;
 
 // Enemies
 export const ZOMBIE_BASE_SPEED = 40;
@@ -59,5 +61,7 @@ export const DEPTH = {
 export const WEAPONS: Record<WeaponType, WeaponInfo> = {
   'default': { name: 'Standard', cost: 0, description: 'Single shot' },
   'double-barrel': { name: 'Double-barrel', cost: 100, description: '2 shots at once' },
-  'burst-shot': { name: 'Burst Shot', cost: 250, description: 'Kills spawn 6 projectiles' }
+  'burst-shot': { name: 'Explosive Shot', cost: 250, description: 'Kills spawn 6 projectiles' },
+  'railgun': { name: 'Railgun', cost: 500, description: '5x damage, pierces targets, slower fire' },
+  'rubber': { name: 'Rubber Gun', cost: 100, description: 'Bouncing projectiles' }
 };

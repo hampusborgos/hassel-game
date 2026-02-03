@@ -44,18 +44,18 @@ All game logic is in a single Phaser Scene class in `src/main.ts`.
 
 ### Key Constants
 
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `PLAYER_SPEED` | 250 | Base movement speed |
-| `PLAYER_SPEED_DOWN_BONUS` | 150 | Extra speed when moving downhill |
-| `BULLET_SPEED` | 600 | Projectile velocity |
-| `SHOOT_COOLDOWN` | 150ms | Time between shots |
-| `ZOMBIE_BASE_SPEED` | 40 | Minimum zombie speed |
-| `TREE_SPAWN_INTERVAL` | 150 | Y-distance between spawn rows |
-| `ROBOT_SPEED` | 400 | Robot movement speed |
-| `ROBOT_FIRST_WAVE` | 5 | Wave when robots start appearing |
-| `BOSS_WAVES` | [3,6,10] | Single boss spawn waves |
-| `MULTI_BOSS_WAVE` | 12 | Multiple bosses start here |
+| Constant                  | Value    | Description                      |
+| ------------------------- | -------- | -------------------------------- |
+| `PLAYER_SPEED`            | 250      | Base movement speed              |
+| `PLAYER_SPEED_DOWN_BONUS` | 150      | Extra speed when moving downhill |
+| `BULLET_SPEED`            | 600      | Projectile velocity              |
+| `SHOOT_COOLDOWN`          | 150ms    | Time between shots               |
+| `ZOMBIE_BASE_SPEED`       | 40       | Minimum zombie speed             |
+| `TREE_SPAWN_INTERVAL`     | 150      | Y-distance between spawn rows    |
+| `ROBOT_SPEED`             | 400      | Robot movement speed             |
+| `ROBOT_FIRST_WAVE`        | 5        | Wave when robots start appearing |
+| `BOSS_WAVES`              | [3,6,10] | Single boss spawn waves          |
+| `MULTI_BOSS_WAVE`         | 12       | Multiple bosses start here       |
 
 ### Player System
 
@@ -72,6 +72,7 @@ All game logic is in a single Phaser Scene class in `src/main.ts`.
 ### Zombie System
 
 Two zombie types:
+
 1. **Regular zombies:** 1 health, 10 points
 2. **Red zombies:** 6 health, 50 points, 1.2x scale, 35% coin drop chance
 
@@ -83,23 +84,24 @@ Red zombie spawn chance: `min(0.2 + waveNumber * 0.05, 0.5)`
 
 Huge purple zombies that appear on specific waves with scaling difficulty:
 
-| Wave | Health | Speed | Points |
-|------|--------|-------|--------|
-| 3 | 100 (x1) | Normal | 500 |
-| 6 | 200 (x2) | 1.2x | 1000 |
-| 10 | 500 (x5) | 1.5x | 2500 |
-| 12+ | Scaling | 1.5x+ | Scaling |
+| Wave | Health   | Speed  | Points  |
+| ---- | -------- | ------ | ------- |
+| 3    | 100 (x1) | Normal | 500     |
+| 6    | 200 (x2) | 1.2x   | 1000    |
+| 10   | 500 (x5) | 1.5x   | 2500    |
+| 12+  | Scaling  | 1.5x+  | Scaling |
 
 - **Sprite:** Dedicated bulky boss-zombie.svg (64x64)
 - **Scale:** 2x sprite size
 - **Health bar:** Green/red bar displayed above boss, shrinks as damage taken
 - **Death rewards:** 5-10 coins + massive explosion (5 particle bursts)
 - **Wave 12+:** Multiple bosses spawn (1 + every 2 waves, max 5)
-- **Post-12 scaling:** Health = 50 * (5 + waves past 12), Speed continues to increase
+- **Post-12 scaling:** Health = 50 \* (5 + waves past 12), Speed continues to increase
 
 ### Robot System
 
 Fast-moving enemy that appears after wave 5:
+
 - **Health:** 4 hits to destroy
 - **Points:** 75 (when shot)
 - **Speed:** 400 (very fast)
@@ -108,6 +110,7 @@ Fast-moving enemy that appears after wave 5:
 - **Stomp rewards:** 1000 points + 25 coins (very rewarding but risky)
 
 Robot burst system:
+
 1. After wave 5+, when a wave ends and no cooldown active, `startRobotBurst()` is called
 2. Spawns 3-4 robots with 1.5s delay between each
 3. After burst completes, 8 second cooldown before next burst can start
@@ -151,16 +154,18 @@ Accessible via "SHOP" button on game over screen.
 |--------|------|-------------|
 | Standard | Free | Single shot (default) |
 | Double-barrel | 100 | Fires 2 bullets with slight spread |
-| Burst Shot | 250 | Kills spawn 6 projectiles in all directions |
+| Explosive Shot | 250 | Kills spawn 6 projectiles in all directions |
 
 **Persistence:**
+
 - Owned weapons: `localStorage` key `hasselgame_weapons`
 - Selected weapon: `localStorage` key `hasselgame_selected_weapon`
 
-**Burst Shot mechanics:**
+**Explosive Shot mechanics:**
+
 - 10 red-tinted bullets spawn at kill location
 - Bullets travel at 70% speed for 200ms then disappear
-- Burst bullets don't trigger additional bursts (prevents chain reactions)
+- Explosive bullets don't trigger additional explosions (prevents chain reactions)
 
 ### Scoring System
 
@@ -174,6 +179,7 @@ Accessible via "SHOP" button on game over screen.
 ### World Generation
 
 Infinite scrolling world using dynamic spawning:
+
 - Trees spawn at ~30% density as player moves down
 - Ski jumps spawn at ~3% density
 - Objects are cleaned up when >1000px from player/camera
@@ -186,31 +192,32 @@ Infinite scrolling world using dynamic spawning:
 
 ## Physics Groups
 
-| Group | Type | Purpose |
-|-------|------|---------|
-| `bullets` | Arcade Group | Player projectiles (max 30) |
-| `zombies` | Arcade Group | Zombie enemies |
-| `robots` | Arcade Group | Robot enemies |
-| `coins` | Arcade Group | Collectible items |
-| `trees` | Display Group | Visual obstacles (no physics) |
-| `jumps` | Static Group | Ski jump ramps |
+| Group     | Type          | Purpose                       |
+| --------- | ------------- | ----------------------------- |
+| `bullets` | Arcade Group  | Player projectiles (max 30)   |
+| `zombies` | Arcade Group  | Zombie enemies                |
+| `robots`  | Arcade Group  | Robot enemies                 |
+| `coins`   | Arcade Group  | Collectible items             |
+| `trees`   | Display Group | Visual obstacles (no physics) |
+| `jumps`   | Static Group  | Ski jump ramps                |
 
 ## Collision Matrix
 
-| A | B | Result |
-|---|---|--------|
-| bullets | zombies | Damage zombie, destroy bullet |
-| bullets | robots | Damage robot, destroy bullet |
-| player | zombies | Game over (unless jumping) |
-| player | robots | Game over (unless jumping) |
-| player | coins | Collect coin |
-| player | jumps | Block if going up, jump if going down |
-| player (landing) | zombies | Stomp kill (10x points) |
-| player (landing) | robots | Stomp kill (1000 pts + 25 coins) |
+| A                | B       | Result                                |
+| ---------------- | ------- | ------------------------------------- |
+| bullets          | zombies | Damage zombie, destroy bullet         |
+| bullets          | robots  | Damage robot, destroy bullet          |
+| player           | zombies | Game over (unless jumping)            |
+| player           | robots  | Game over (unless jumping)            |
+| player           | coins   | Collect coin                          |
+| player           | jumps   | Block if going up, jump if going down |
+| player (landing) | zombies | Stomp kill (10x points)               |
+| player (landing) | robots  | Stomp kill (1000 pts + 25 coins)      |
 
 ## Adding New Features
 
 ### New Enemy Type
+
 1. Add sprite to `public/assets/`
 2. Load in `preload()` with `this.load.svg()`
 3. Create spawn logic similar to `spawnZombieFromEdge()`
@@ -218,6 +225,7 @@ Infinite scrolling world using dynamic spawning:
 5. Add to zombies group or create new group
 
 ### New Collectible
+
 1. Create SVG sprite
 2. Load in `preload()`
 3. Create physics group in `create()`
@@ -225,6 +233,7 @@ Infinite scrolling world using dynamic spawning:
 5. If persistent, add localStorage save/load
 
 ### New Obstacle
+
 1. Create SVG sprite
 2. Load in `preload()`
 3. Create group (static or dynamic)

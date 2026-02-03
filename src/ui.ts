@@ -22,7 +22,7 @@ export function showGameOver(
   score: number,
   coinCount: number,
   isMobile: boolean,
-  onShop: () => void,
+  onShop: (onShopClose: () => void) => void,
   onRestart: () => void
 ): void {
   playGameOver();
@@ -330,9 +330,25 @@ export function showGameOver(
   }).setOrigin(0.5).setInteractive().setScrollFactor(0).setDepth(DEPTH.OVERLAY_UI);
   uiElements.push(shopBtn);
 
+  // Hide/show game over UI functions for shop overlay
+  const hideGameOverUI = () => {
+    uiElements.forEach(el => {
+      if ('setVisible' in el) {
+        (el as unknown as Phaser.GameObjects.Components.Visible).setVisible(false);
+      }
+    });
+  };
+  const showGameOverUI = () => {
+    uiElements.forEach(el => {
+      if ('setVisible' in el) {
+        (el as unknown as Phaser.GameObjects.Components.Visible).setVisible(true);
+      }
+    });
+  };
+
   shopBtn.on('pointerdown', () => {
-    cleanup();
-    onShop();
+    hideGameOverUI();
+    onShop(showGameOverUI);
   });
 
   const restartText = isMobile ? '[ PLAY ]' : '[ PLAY ] (R)';
