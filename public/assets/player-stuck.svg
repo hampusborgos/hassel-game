@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Outer snow ring -->
+  <ellipse cx="32" cy="44" rx="28" ry="16" fill="#e8f4f8"/>
+
+  <!-- Ice edge -->
+  <ellipse cx="32" cy="44" rx="22" ry="12" fill="#cce8f0"/>
+
+  <!-- Dark water hole -->
+  <ellipse cx="32" cy="44" rx="16" ry="9" fill="#2a5a7a"/>
+
+  <!-- Deep water center -->
+  <ellipse cx="32" cy="46" rx="12" ry="6" fill="#1a3a5a"/>
+
+  <!-- Ice chunks -->
+  <ellipse cx="10" cy="42" rx="3" ry="2" fill="#ffffff" opacity="0.7"/>
+  <ellipse cx="52" cy="46" rx="2.5" ry="1.5" fill="#ffffff" opacity="0.6"/>
+
+  <!-- Cracks in ice -->
+  <path d="M8 36 L12 42 L10 48" stroke="#b0d8e8" stroke-width="1" fill="none"/>
+  <path d="M54 38 L52 44 L56 50" stroke="#b0d8e8" stroke-width="1" fill="none"/>
+
+  <!-- Water ripples around player -->
+  <ellipse cx="32" cy="42" rx="10" ry="4" fill="none" stroke="#4a8aaa" stroke-width="1" opacity="0.5"/>
+  <ellipse cx="32" cy="44" rx="14" ry="5" fill="none" stroke="#4a8aaa" stroke-width="0.5" opacity="0.3"/>
+
+  <!-- Ski poles sticking out of water at angles -->
+  <line x1="18" y1="22" x2="12" y2="50" stroke="#444" stroke-width="2" stroke-linecap="round"/>
+  <line x1="46" y1="22" x2="52" y2="50" stroke="#444" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Arms reaching up/flailing -->
+  <rect x="12" y="24" width="14" height="5" rx="2" fill="#dc2626" transform="rotate(-20, 19, 26)"/>
+  <rect x="38" y="24" width="14" height="5" rx="2" fill="#dc2626" transform="rotate(20, 45, 26)"/>
+
+  <!-- Hands -->
+  <circle cx="12" cy="22" r="3" fill="#fcd34d"/>
+  <circle cx="52" cy="22" r="3" fill="#fcd34d"/>
+
+  <!-- Body/Jacket (partially submerged) -->
+  <ellipse cx="32" cy="36" rx="10" ry="8" fill="#dc2626"/>
+  <ellipse cx="32" cy="34" rx="8" ry="6" fill="#ef4444"/>
+
+  <!-- Water splash over lower body -->
+  <ellipse cx="32" cy="40" rx="12" ry="4" fill="#2a5a7a" opacity="0.7"/>
+
+  <!-- Head -->
+  <circle cx="32" cy="18" r="10" fill="#fcd34d"/>
+
+  <!-- Helmet/Hat -->
+  <ellipse cx="32" cy="14" rx="10" ry="6" fill="#1e40af"/>
+  <rect x="22" y="12" width="20" height="6" rx="2" fill="#1e40af"/>
+
+  <!-- Goggles -->
+  <rect x="24" y="16" width="16" height="5" rx="2" fill="#333"/>
+  <rect x="25" y="17" width="6" height="3" rx="1" fill="#60a5fa"/>
+  <rect x="33" y="17" width="6" height="3" rx="1" fill="#60a5fa"/>
+
+  <!-- Worried mouth -->
+  <ellipse cx="32" cy="24" rx="3" ry="2" fill="#fbbf24"/>
+  <path d="M29 25 Q32 23 35 25" stroke="#333" stroke-width="1.5" fill="none"/>
+
+  <!-- Water droplets flying -->
+  <circle cx="20" cy="30" r="2" fill="#60a5fa" opacity="0.7"/>
+  <circle cx="44" cy="28" r="1.5" fill="#60a5fa" opacity="0.6"/>
+  <circle cx="24" cy="26" r="1" fill="#60a5fa" opacity="0.5"/>
+  <circle cx="42" cy="32" r="1.5" fill="#60a5fa" opacity="0.6"/>
+</svg>

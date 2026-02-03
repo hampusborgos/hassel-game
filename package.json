@@ -12,6 +12,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@instantdb/core": "^0.22.121",
+    "@instantdb/react": "^0.22.121",
     "jsfxr": "^1.4.0",
     "phaser": "^3.90.0"
   },
