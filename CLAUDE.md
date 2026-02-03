@@ -247,3 +247,31 @@ Infinite scrolling world using dynamic spawning:
 - UI elements use `.setScrollFactor(0).setDepth(100+)`
 - Tweens used for animations (coins, explosions, jumps)
 - Collision callbacks cast to `Phaser.Types.Physics.Arcade.ArcadePhysicsCallback`
+
+## Performance Notes (Safari/WebGL)
+
+**CRITICAL: Safari WebGL is slow with redundant `setTexture()` calls.**
+
+Never call `sprite.setTexture()` every frame. Track the current texture and only call it when changing:
+
+```typescript
+// BAD - causes frame drops in Safari
+update() {
+  if (movingUp) {
+    this.player.setTexture('player-up');  // Called every frame!
+  }
+}
+
+// GOOD - only updates when texture changes
+private currentTexture = 'player-down';
+
+update() {
+  const newTexture = movingUp ? 'player-up' : 'player-down';
+  if (newTexture !== this.currentTexture) {
+    this.player.setTexture(newTexture);
+    this.currentTexture = newTexture;
+  }
+}
+```
+
+This applies to any per-frame texture/sprite changes. Chrome handles redundant calls fine, but Safari's WebGL does not.
