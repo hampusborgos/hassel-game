@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { WeaponType } from './types';
-import { BULLET_SPEED, SHOOT_COOLDOWN, RAILGUN_COOLDOWN, RAILGUN_DAMAGE, DEPTH } from './constants';
+import { BULLET_SPEED, SHOOT_COOLDOWN, MACHINEGUN_COOLDOWN, RAILGUN_COOLDOWN, RAILGUN_DAMAGE, DEPTH } from './constants';
 import { playShotFired, playRailgun } from './sfxr';
 
 export interface RailgunHitCallback {
@@ -59,7 +59,8 @@ export class WeaponSystem {
 
       playShotFired();
       this.canShoot = false;
-      this.scene.time.delayedCall(SHOOT_COOLDOWN, () => {
+      const cooldown = this.currentWeapon === 'machinegun' ? MACHINEGUN_COOLDOWN : SHOOT_COOLDOWN;
+      this.scene.time.delayedCall(cooldown, () => {
         this.canShoot = true;
       });
     }

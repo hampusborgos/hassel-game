@@ -5,8 +5,9 @@ export const PLAYER_SPEED = 250;
 export const PLAYER_SPEED_DOWN_BONUS = 150;
 
 // Shooting
-export const BULLET_SPEED = 600;
+export const BULLET_SPEED = 480; // 20% slower than original 600
 export const SHOOT_COOLDOWN = 150;
+export const MACHINEGUN_COOLDOWN = 86; // 75% faster than standard
 export const RAILGUN_COOLDOWN = 375; // 2.5x slower than standard
 export const RAILGUN_DAMAGE = 7;
 
@@ -63,5 +64,6 @@ export const WEAPONS: Record<WeaponType, WeaponInfo> = {
   'double-barrel': { name: 'Double-barrel', cost: 100, description: '2 shots at once' },
   'burst-shot': { name: 'Explosive Shot', cost: 250, description: 'Kills spawn 6 projectiles' },
   'railgun': { name: 'Railgun', cost: 500, description: 'Massive damage, pierces targets, slower fire' },
-  'rubber': { name: 'Rubber Gun', cost: 100, description: 'Bouncing projectiles' }
+  'rubber': { name: 'Rubber Gun', cost: 100, description: 'Bouncing projectiles' },
+  'machinegun': { name: 'Machine Gun', cost: 150, description: '75% faster fire rate' }
 };
