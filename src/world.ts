@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { ATLAS_KEY } from './MainScene';
 
 const CHUNK_SIZE = 200; // Size of each chunk in pixels
 
@@ -82,19 +83,20 @@ export class WorldManager {
   }
 
   spawnTree(x: number, y: number): void {
-    const tree = this.scene.add.image(x, y, 'tree');
+    const tree = this.scene.add.image(x, y, ATLAS_KEY, 'tree');
     tree.setDepth(y);
+    tree.setScale(Phaser.Math.FloatBetween(0.9, 1.1));
     this.trees.add(tree);
   }
 
   spawnJump(x: number, y: number): void {
-    const jump = this.jumps.create(x, y, 'jump') as Phaser.Physics.Arcade.Sprite;
+    const jump = this.jumps.create(x, y, ATLAS_KEY, 'jump') as Phaser.Physics.Arcade.Sprite;
     jump.setDepth(y - 10);
     jump.refreshBody();
   }
 
   spawnHole(x: number, y: number): void {
-    const hole = this.holes.create(x, y, 'hole') as Phaser.Physics.Arcade.Sprite;
+    const hole = this.holes.create(x, y, ATLAS_KEY, 'hole') as Phaser.Physics.Arcade.Sprite;
     hole.setDepth(y - 15);
     hole.refreshBody();
   }

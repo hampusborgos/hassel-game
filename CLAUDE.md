@@ -8,31 +8,51 @@ A top-down ski shooter survival game built with **Phaser 3** and **TypeScript**.
 
 - **Framework:** Phaser 3 (game engine)
 - **Language:** TypeScript
-- **Build:** Vite (assumed based on structure)
-- **Assets:** SVG sprites
+- **Build:** Vite
+- **Assets:** Texture atlas (PNG spritesheet generated from SVGs)
 
 ## Project Structure
 
 ```
 hasselgame/
 ├── src/
-│   └── main.ts          # Main game code (single file)
+│   ├── MainScene.ts     # Main game scene
+│   ├── main.ts          # Entry point, Phaser config
+│   ├── constants.ts     # Game constants
+│   ├── controls.ts      # Mobile joystick controls
+│   ├── enemies.ts       # EnemyManager class
+│   ├── weapons.ts       # WeaponSystem class
+│   ├── collectibles.ts  # CollectibleManager class
+│   ├── world.ts         # WorldManager class (terrain)
+│   ├── effects.ts       # Particle effects
+│   ├── ui.ts            # HUD creation
+│   ├── shop.ts          # Weapon shop logic
+│   ├── persistence.ts   # localStorage helpers
+│   ├── database.ts      # InstantDB integration
+│   ├── sfxr.ts          # Sound effects (jsfxr)
+│   ├── bitmapFont.ts    # Custom bitmap font
+│   └── overlays/        # Game over & shop overlays
+├── scripts/
+│   └── generate-atlas.js # Builds texture atlas from SVGs
 ├── public/
 │   └── assets/
-│       ├── player.svg       # Default/uphill player sprite
-│       ├── player-down.svg  # Downhill player sprite
-│       ├── player-left.svg  # Left-leaning player sprite
-│       ├── player-right.svg # Right-leaning player sprite
-│       ├── bullet.svg       # Projectile sprite
-│       ├── zombie.svg       # Zombie sprite (teal colored)
-│       ├── boss-zombie.svg  # Boss zombie sprite (bulky, purple)
-│       ├── tree.svg         # Tree obstacle
-│       ├── coin.svg         # Collectible coin
-│       ├── shield.svg       # Shield pickup item
-│       ├── bubble.svg       # Shield bubble around player
-│       ├── jump.svg         # Ski jump ramp (trapezoid)
-│       ├── hole.svg         # Ice hole trap
-│       └── robot.svg        # Robot enemy
+│       ├── atlas.png        # Generated spritesheet (all sprites)
+│       ├── atlas.json       # Phaser atlas frame data
+│       ├── player.svg       # Source: Default/uphill player
+│       ├── player-down.svg  # Source: Downhill player
+│       ├── player-left.svg  # Source: Left-leaning player
+│       ├── player-right.svg # Source: Right-leaning player
+│       ├── player-stuck.svg # Source: Stuck in hole player
+│       ├── bullet.svg       # Source: Projectile
+│       ├── zombie.svg       # Source: Zombie (teal)
+│       ├── boss-zombie.svg  # Source: Boss zombie (purple)
+│       ├── tree.svg         # Source: Tree obstacle
+│       ├── coin.svg         # Source: Collectible coin
+│       ├── shield.svg       # Source: Shield pickup
+│       ├── bubble.svg       # Source: Shield bubble
+│       ├── jump.svg         # Source: Ski jump ramp
+│       ├── hole.svg         # Source: Ice hole trap
+│       └── robot.svg        # Source: Robot enemy
 └── CLAUDE.md
 ```
 
@@ -40,7 +60,11 @@ hasselgame/
 
 ### Main Scene (`MainScene`)
 
-All game logic is in a single Phaser Scene class in `src/main.ts`.
+The game uses a single Phaser Scene (`MainScene` in `src/MainScene.ts`) with logic split across manager classes:
+- `EnemyManager` - Zombie, boss, and robot spawning/AI
+- `WeaponSystem` - Shooting mechanics and bullet management
+- `CollectibleManager` - Coins, shields, and pickups
+- `WorldManager` - Terrain generation (trees, jumps, holes)
 
 ### Key Constants
 
@@ -218,39 +242,82 @@ Infinite scrolling world using dynamic spawning:
 
 ### New Enemy Type
 
-1. Add sprite to `public/assets/`
-2. Load in `preload()` with `this.load.svg()`
-3. Create spawn logic similar to `spawnZombieFromEdge()`
-4. Set data: `health`, `maxHealth`, `points`
-5. Add to zombies group or create new group
+1. Add SVG sprite to `public/assets/`
+2. Add sprite definition to `scripts/generate-atlas.js` (name, file, width, height)
+3. Run `npm run atlas` to regenerate the texture atlas
+4. Create spawn logic in `enemies.ts` using `group.create(x, y, ATLAS_KEY, 'sprite-name')`
+5. Set data: `health`, `maxHealth`, `points`
+6. Add to zombies group or create new group
 
 ### New Collectible
 
-1. Create SVG sprite
-2. Load in `preload()`
-3. Create physics group in `create()`
-4. Add overlap collision with player
-5. If persistent, add localStorage save/load
+1. Create SVG sprite in `public/assets/`
+2. Add to `scripts/generate-atlas.js` and run `npm run atlas`
+3. Create physics group in `MainScene.create()`
+4. Spawn with `group.create(x, y, ATLAS_KEY, 'sprite-name')`
+5. Add overlap collision with player
+6. If persistent, add localStorage save/load in `persistence.ts`
 
 ### New Obstacle
 
-1. Create SVG sprite
-2. Load in `preload()`
-3. Create group (static or dynamic)
-4. Add spawn logic in `spawnTreesAroundPlayer()` or similar
+1. Create SVG sprite in `public/assets/`
+2. Add to `scripts/generate-atlas.js` and run `npm run atlas`
+3. Create group (static or dynamic) in `MainScene.create()`
+4. Add spawn logic in `WorldManager` using `ATLAS_KEY` and frame name
 5. Add collision handling
 
 ## Known Patterns
 
-- SVG sprites loaded with explicit dimensions: `{ width: X, height: Y }`
+- **Texture Atlas:** All sprites use `ATLAS_KEY` constant from `MainScene.ts`
+- **Sprite creation:** `group.create(x, y, ATLAS_KEY, 'frame-name')` or `add.image(x, y, ATLAS_KEY, 'frame-name')`
+- **Texture switching:** `sprite.setTexture(ATLAS_KEY, 'frame-name')`
 - Depth based on Y position for proper layering: `sprite.setDepth(sprite.y)`
 - UI elements use `.setScrollFactor(0).setDepth(100+)`
 - Tweens used for animations (coins, explosions, jumps)
 - Collision callbacks cast to `Phaser.Types.Physics.Arcade.ArcadePhysicsCallback`
 
+## Texture Atlas System
+
+All game sprites are packed into a single texture atlas for WebGL batching performance.
+
+**Files:**
+- `public/assets/atlas.png` - The spritesheet image (484×130 pixels)
+- `public/assets/atlas.json` - Frame coordinates for Phaser
+- `scripts/generate-atlas.js` - Build script using resvg-js
+
+**Regenerating the atlas:**
+```bash
+npm run atlas
+```
+
+Run this after adding/modifying any SVG sprite. The script:
+1. Reads sprite definitions (name, SVG file, target width/height)
+2. Converts SVGs to PNG using resvg-js
+3. Packs into a single spritesheet
+4. Generates Phaser-compatible JSON
+
+**Adding a new sprite to the atlas:**
+```javascript
+// In scripts/generate-atlas.js, add to the sprites array:
+{ name: 'my-sprite', file: 'my-sprite.svg', width: 32, height: 32 },
+```
+
 ## Performance Notes (Safari/WebGL)
 
-**CRITICAL: Safari WebGL is slow with redundant `setTexture()` calls.**
+### Texture Atlas (Critical for Safari)
+
+Safari's WebGL compositor stalls when processing many individual draw calls. The texture atlas enables Phaser to batch all sprites into 1-3 draw calls instead of 150+.
+
+**Never load individual textures for game sprites.** Always use the atlas:
+```typescript
+// BAD - creates separate textures, no batching
+this.load.svg('zombie', 'assets/zombie.svg', { width: 40, height: 40 });
+
+// GOOD - uses shared atlas texture, enables batching
+this.load.atlas(ATLAS_KEY, 'assets/atlas.png', 'assets/atlas.json');
+```
+
+### Avoid Redundant setTexture() Calls
 
 Never call `sprite.setTexture()` every frame. Track the current texture and only call it when changing:
 
@@ -258,7 +325,7 @@ Never call `sprite.setTexture()` every frame. Track the current texture and only
 // BAD - causes frame drops in Safari
 update() {
   if (movingUp) {
-    this.player.setTexture('player-up');  // Called every frame!
+    this.player.setTexture(ATLAS_KEY, 'player-up');  // Called every frame!
   }
 }
 
@@ -268,7 +335,7 @@ private currentTexture = 'player-down';
 update() {
   const newTexture = movingUp ? 'player-up' : 'player-down';
   if (newTexture !== this.currentTexture) {
-    this.player.setTexture(newTexture);
+    this.player.setTexture(ATLAS_KEY, newTexture);
     this.currentTexture = newTexture;
   }
 }

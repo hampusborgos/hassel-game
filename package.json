@@ -2,11 +2,13 @@
   "name": "noel-aker-skidor",
   "version": "1.0.0",
   "description": "",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "atlas": "node scripts/generate-atlas.js"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +20,8 @@
     "phaser": "^3.90.0"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "canvas": "^3.2.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"
   }

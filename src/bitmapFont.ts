@@ -73,16 +73,24 @@ export function generateBitmapFont(scene: Phaser.Scene): void {
     // Draw character
     ctx.fillText(char, x + padding, y + padding);
 
-    // Store character data
+    // Store character data with all required Phaser properties
     const charCode = char.charCodeAt(0);
     fontData.chars[charCode] = {
       x: x,
       y: y,
       width: width,
       height: lineHeight,
+      centerX: width / 2,
+      centerY: lineHeight / 2,
       xOffset: 0,
       yOffset: 0,
       xAdvance: width - padding,
+      // UV texture coordinates (0-1 range)
+      u0: x / textureWidth,
+      v0: y / textureHeight,
+      u1: (x + width) / textureWidth,
+      v1: (y + lineHeight) / textureHeight,
+      data: {},
       kerning: {}
     };
 

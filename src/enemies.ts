@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { ZOMBIE_BASE_SPEED, ROBOT_SPEED, BOSS_WAVES, MULTI_BOSS_WAVE, DEPTH } from './constants';
 import { playBossAmbiance, playRobotTelegraph, playRobotRun } from './sfxr';
+import { ATLAS_KEY } from './MainScene';
 
 export class EnemyManager {
   private scene: Phaser.Scene;
@@ -64,7 +65,7 @@ export class EnemyManager {
     const baseHealth = 100;
     const health = baseHealth * healthMultiplier;
 
-    const boss = this.zombies.create(x, y, 'boss-zombie') as Phaser.Physics.Arcade.Sprite;
+    const boss = this.zombies.create(x, y, ATLAS_KEY, 'boss-zombie') as Phaser.Physics.Arcade.Sprite;
     boss.setScale(2);
     boss.setDepth(y);
     boss.setData('health', health);
@@ -129,7 +130,7 @@ export class EnemyManager {
         break;
     }
 
-    const zombie = this.zombies.create(x, y, 'zombie') as Phaser.Physics.Arcade.Sprite;
+    const zombie = this.zombies.create(x, y, ATLAS_KEY, 'zombie') as Phaser.Physics.Arcade.Sprite;
     zombie.setDepth(y);
 
     const redChance = Math.min(0.2 + waveNumber * 0.05, 0.5);
@@ -305,7 +306,7 @@ export class EnemyManager {
   private spawnRobotAtPosition(x: number, y: number, angle: number): void {
     playRobotRun();
 
-    const robot = this.robots.create(x, y, 'robot') as Phaser.Physics.Arcade.Sprite;
+    const robot = this.robots.create(x, y, ATLAS_KEY, 'robot') as Phaser.Physics.Arcade.Sprite;
     robot.setDepth(y);
     robot.setData('health', 4);
     robot.setData('maxHealth', 4);
