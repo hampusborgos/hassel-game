@@ -505,7 +505,8 @@ export class MainScene extends Phaser.Scene {
 
     zombie.destroy();
     createExplosion(this, x, y);
-    createZombieExplosion(this, x, y, isRed);
+    // Stomp comes from above - angle pointing down (PI/2)
+    createZombieExplosion(this, x, y, isRed, Math.PI / 2);
   }
 
   private explodeRobot(robot: Phaser.Physics.Arcade.Sprite) {
@@ -596,7 +597,11 @@ export class MainScene extends Phaser.Scene {
 
       this.collectibleManager.tryDropShield(z.x, z.y, this.waveNumber);
       const isRed = z.getData('isRed') || false;
-      createZombieExplosion(this, z.x, z.y, isRed);
+      // Get hit angle from bullet velocity
+      const bVelX = b.body?.velocity.x || 0;
+      const bVelY = b.body?.velocity.y || 0;
+      const hitAngle = Math.atan2(bVelY, bVelX);
+      createZombieExplosion(this, z.x, z.y, isRed, hitAngle);
       z.destroy();
     } else {
       // Debounced hit flash using frame swap (Safari optimization)
@@ -765,7 +770,9 @@ export class MainScene extends Phaser.Scene {
         this.collectibleManager.tryDropShield(target.x, target.y, this.waveNumber);
         // Add colored explosion for non-boss zombies
         const isRed = target.getData('isRed') || false;
-        createZombieExplosion(this, target.x, target.y, isRed);
+        // Hit angle from player to target
+        const hitAngle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
+        createZombieExplosion(this, target.x, target.y, isRed, hitAngle);
       }
 
       createExplosion(this, target.x, target.y);

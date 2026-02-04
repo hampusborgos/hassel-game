@@ -44,12 +44,16 @@ export function createExplosion(scene: Phaser.Scene, x: number, y: number): void
   });
 }
 
-export function createZombieExplosion(scene: Phaser.Scene, x: number, y: number, isRed: boolean): void {
+export function createZombieExplosion(scene: Phaser.Scene, x: number, y: number, isRed: boolean, hitAngle?: number): void {
   const particleCount = 8;
   // Blue colors for basic zombie, red colors for red zombie
   const colors = isRed
     ? [0xff4444, 0xff6666, 0xcc2222, 0xff8888]
     : [0x44aaff, 0x66ccff, 0x2288cc, 0x88ddff];
+
+  // Directional boost from hit angle (particles fly in direction of bullet travel)
+  const boostX = hitAngle !== undefined ? Math.cos(hitAngle) * 80 : 0;
+  const boostY = hitAngle !== undefined ? Math.sin(hitAngle) * 40 : 0;
 
   for (let i = 0; i < particleCount; i++) {
     const color = colors[Phaser.Math.Between(0, colors.length - 1)];
@@ -58,12 +62,12 @@ export function createZombieExplosion(scene: Phaser.Scene, x: number, y: number,
     const particle = scene.add.circle(x, y, size, color);
     particle.setDepth(DEPTH.EXPLOSION);
 
-    // Horizontal spread - particles land in a spread around the zombie
-    const finalX = x + Phaser.Math.Between(-50, 50);
-    // Land at zombie's feet (slightly below center)
-    const finalY = y + Phaser.Math.Between(15, 25);
-    // Peak height of the arc
-    const peakY = y - Phaser.Math.Between(40, 80);
+    // Horizontal spread with directional boost from hit
+    const finalX = x + Phaser.Math.Between(-30, 30) + boostX + Phaser.Math.FloatBetween(-10, 10);
+    // Land at zombie's feet (slightly below center) with slight Y boost
+    const finalY = y + Phaser.Math.Between(15, 25) + boostY * 0.5;
+    // Peak height of the arc - higher on the side opposite to hit direction
+    const peakY = y - Phaser.Math.Between(40, 80) + boostY;
 
     const duration = Phaser.Math.Between(300, 450);
 
