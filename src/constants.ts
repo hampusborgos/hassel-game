@@ -11,7 +11,7 @@ export const MACHINEGUN_COOLDOWN = 86; // 75% faster than standard
 export const RAILGUN_COOLDOWN = 375; // 2.5x slower than standard
 export const RAILGUN_DAMAGE = 7;
 export const SHOTGUN_COOLDOWN = 420; // 2.8x slower than standard
-export const SHOTGUN_KNOCKBACK = 80; // Knockback distance for player
+export const SHOTGUN_KNOCKBACK = 200; // Knockback velocity for player push
 
 // Enemies
 export const ZOMBIE_BASE_SPEED = 40;

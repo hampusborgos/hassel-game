@@ -138,11 +138,13 @@ export class WeaponSystem {
       }
     }
 
-    // Push back the player (knockback in opposite direction of shot)
-    const knockbackX = -Math.cos(aimAngle) * SHOTGUN_KNOCKBACK;
-    const knockbackY = -Math.sin(aimAngle) * SHOTGUN_KNOCKBACK;
-    this.player.x += knockbackX;
-    this.player.y += knockbackY;
+    // Push back the player (velocity-based knockback in opposite direction of shot)
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    if (body) {
+      const knockbackX = -Math.cos(aimAngle) * SHOTGUN_KNOCKBACK;
+      const knockbackY = -Math.sin(aimAngle) * SHOTGUN_KNOCKBACK;
+      body.setVelocity(body.velocity.x + knockbackX, body.velocity.y + knockbackY);
+    }
   }
 
   private shootRailgun(angle: number): void {
