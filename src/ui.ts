@@ -14,6 +14,24 @@ export interface HUDElements {
   cleanupPresence: () => void;
 }
 
+// Create or get the DOM container for avatars (overlaid on canvas)
+function getAvatarContainer(): HTMLElement {
+  let container = document.getElementById('hud-avatar-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'hud-avatar-container';
+    container.style.cssText = `
+      position: absolute;
+      top: 0;
+      right: 0;
+      pointer-events: none;
+      z-index: 10;
+    `;
+    document.body.appendChild(container);
+  }
+  return container;
+}
+
 export function createHUD(
   scene: Phaser.Scene,
   initialCoinCount: number
@@ -34,20 +52,18 @@ export function createHUD(
     .setScrollFactor(0)
     .setDepth(DEPTH.HUD);
 
-  // Active players presence display (below wave text, horizontal stack)
+  // Active players presence display using DOM elements (for CORS compatibility)
   const avatarSize = 28;
   const avatarGap = 4;
   const avatarY = 46;
-  const avatarElements: Phaser.GameObjects.GameObject[] = [];
-  const loadedTextures: string[] = [];
+  const avatarContainer = getAvatarContainer();
 
   // Publish own presence
   publishPresence();
 
   const updateActivePlayersDisplay = (players: ActivePlayer[]) => {
     // Clear existing avatar elements
-    avatarElements.forEach(el => el.destroy());
-    avatarElements.length = 0;
+    avatarContainer.innerHTML = '';
 
     // Calculate starting X position (right-aligned from wave text)
     const startX = scene.scale.width - 16;
@@ -62,63 +78,53 @@ export function createHUD(
       const player = playersWithAvatars[i];
       const avatarUrl = player.presence.avatarUrl!;
 
-      // Avatar background - highlight current user with a different color
-      const bgColor = player.isCurrentUser ? 0x4488ff : 0x444444;
-      const avatarBg = scene.add.rectangle(
-        currentX - avatarSize / 2,
-        avatarY + avatarSize / 2,
-        avatarSize,
-        avatarSize,
-        bgColor,
-        0.8
-      ).setScrollFactor(0).setDepth(DEPTH.HUD);
-      avatarElements.push(avatarBg);
+      // Create avatar wrapper
+      const wrapper = document.createElement('div');
+      const bgColor = player.isCurrentUser ? '#4488ff' : '#444444';
+      wrapper.style.cssText = `
+        position: absolute;
+        right: ${scene.scale.width - currentX + avatarSize / 2}px;
+        top: ${avatarY}px;
+        width: ${avatarSize}px;
+        height: ${avatarSize}px;
+        background: ${bgColor};
+        border-radius: 2px;
+        overflow: hidden;
+        opacity: 0.9;
+      `;
 
-      // Load and display avatar image using filecomplete event for this specific image
-      const textureKey = `presence_avatar_${player.oddjobId}_${i}`;
-      loadedTextures.push(textureKey);
+      // Create avatar image
+      const img = document.createElement('img');
+      img.src = avatarUrl;
+      img.style.cssText = `
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      `;
+      img.onerror = () => {
+        // Hide wrapper if image fails to load
+        wrapper.style.display = 'none';
+      };
 
-      const avatarX = currentX - avatarSize / 2;
-
-      // Skip if texture already exists (avoid reloading)
-      if (scene.textures.exists(textureKey)) {
-        const avatarImg = scene.add.image(avatarX, avatarY + avatarSize / 2, textureKey)
-          .setDisplaySize(avatarSize - 2, avatarSize - 2)
-          .setScrollFactor(0)
-          .setDepth(DEPTH.HUD + 1);
-        avatarElements.push(avatarImg);
-      } else {
-        // Set CORS for external images and use filecomplete for per-image callback
-        scene.load.setCORS('anonymous');
-        scene.load.image(textureKey, avatarUrl);
-
-        // Use filecomplete event which fires for each individual file
-        const onFileComplete = (key: string) => {
-          if (key === textureKey && scene.textures.exists(textureKey)) {
-            const avatarImg = scene.add.image(avatarX, avatarY + avatarSize / 2, textureKey)
-              .setDisplaySize(avatarSize - 2, avatarSize - 2)
-              .setScrollFactor(0)
-              .setDepth(DEPTH.HUD + 1);
-            avatarElements.push(avatarImg);
-          }
-        };
-        scene.load.once(`filecomplete-image-${textureKey}`, onFileComplete);
-        scene.load.start();
-      }
+      wrapper.appendChild(img);
+      avatarContainer.appendChild(wrapper);
 
       currentX -= avatarSize + avatarGap;
     }
 
-    // If no players with avatars, show a subtle indicator
+    // If no players with avatars, show count as Phaser text
     if (playersWithAvatars.length === 0 && players.length > 0) {
-      const countText = scene.add.bitmapText(
-        startX,
-        avatarY + avatarSize / 2,
-        UI_FONT_KEY,
-        `${players.length} online`,
-        12
-      ).setTint(0x666666).setOrigin(1, 0.5).setScrollFactor(0).setDepth(DEPTH.HUD);
-      avatarElements.push(countText);
+      const countDiv = document.createElement('div');
+      countDiv.style.cssText = `
+        position: absolute;
+        right: 16px;
+        top: ${avatarY + avatarSize / 2 - 6}px;
+        color: #666;
+        font-family: monospace;
+        font-size: 12px;
+      `;
+      countDiv.textContent = `${players.length} online`;
+      avatarContainer.appendChild(countDiv);
     }
   };
 
@@ -127,13 +133,7 @@ export function createHUD(
 
   const cleanupPresence = () => {
     unsubPresence();
-    avatarElements.forEach(el => el.destroy());
-    // Clean up loaded textures
-    loadedTextures.forEach(key => {
-      if (scene.textures.exists(key)) {
-        scene.textures.remove(key);
-      }
-    });
+    avatarContainer.innerHTML = '';
   };
 
   return { scoreText, coinText, waveText, cleanupPresence };
