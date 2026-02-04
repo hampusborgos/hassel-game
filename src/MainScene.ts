@@ -17,8 +17,24 @@ import { generateBitmapFont, UI_FONT_KEY } from './bitmapFont';
 // Module-level cache flag for bitmap font generation
 let bitmapFontGenerated = false;
 
-// Atlas key constant - all sprites use this single texture
-export const ATLAS_KEY = 'atlas';
+// Sprite definitions - each SVG is loaded and rendered to a texture at runtime
+const SPRITE_DEFS = [
+  { key: 'player', file: 'assets/player.svg', width: 48, height: 48 },
+  { key: 'player-down', file: 'assets/player-down.svg', width: 48, height: 48 },
+  { key: 'player-left', file: 'assets/player-left.svg', width: 48, height: 48 },
+  { key: 'player-right', file: 'assets/player-right.svg', width: 48, height: 48 },
+  { key: 'player-stuck', file: 'assets/player-stuck.svg', width: 64, height: 64 },
+  { key: 'bullet', file: 'assets/bullet.svg', width: 8, height: 16 },
+  { key: 'zombie', file: 'assets/zombie.svg', width: 40, height: 40 },
+  { key: 'boss-zombie', file: 'assets/boss-zombie.svg', width: 64, height: 64 },
+  { key: 'tree', file: 'assets/tree.svg', width: 40, height: 60 },
+  { key: 'coin', file: 'assets/coin.svg', width: 24, height: 24 },
+  { key: 'shield', file: 'assets/shield.svg', width: 32, height: 32 },
+  { key: 'bubble', file: 'assets/bubble.svg', width: 64, height: 64 },
+  { key: 'jump', file: 'assets/jump.svg', width: 64, height: 32 },
+  { key: 'hole', file: 'assets/hole.svg', width: 48, height: 32 },
+  { key: 'robot', file: 'assets/robot.svg', width: 40, height: 48 },
+];
 
 export class MainScene extends Phaser.Scene {
   private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -79,37 +95,62 @@ export class MainScene extends Phaser.Scene {
   }
 
   preload() {
-    // Load texture atlas (all sprites packed into one texture for batched rendering)
-    this.load.atlas(ATLAS_KEY, 'assets/atlas.png', 'assets/atlas.json');
+    // Load each SVG individually - rendered to bitmap textures at runtime
+    // This avoids iOS WebGL texture atlas issues
+    for (const sprite of SPRITE_DEFS) {
+      this.load.svg(sprite.key, sprite.file, { width: sprite.width, height: sprite.height });
+    }
 
-    // Log any load errors for debugging mobile issues
+    // Log any load errors for debugging
     this.load.on('loaderror', (file: Phaser.Loader.File) => {
       console.error('Failed to load:', file.key, file.src);
     });
 
     this.load.on('complete', () => {
-      const texture = this.textures.get(ATLAS_KEY);
-      const frameNames = Object.keys(texture?.frames || {});
-      console.log('Assets loaded. Atlas frames:', frameNames.length);
-
-      // Debug texture info for iOS issues
-      if (texture && texture.source && texture.source[0]) {
-        const source = texture.source[0];
-        console.log('Texture source:', {
-          width: source.width,
-          height: source.height,
-          glTexture: !!source.glTexture,
-          isRenderTexture: source.isRenderTexture
-        });
-      }
+      console.log('SVGs loaded, generating hit variant textures...');
+      this.generateHitVariants();
     });
+  }
 
-    // Log loading progress
-    this.load.on('progress', (value: number) => {
-      if (value === 1) {
-        console.log('Loading complete, processing textures...');
+  private generateHitVariants() {
+    // Generate white "hit flash" variants for enemies
+    const hitVariants = ['zombie', 'boss-zombie', 'robot'];
+
+    for (const key of hitVariants) {
+      const sourceTexture = this.textures.get(key);
+      if (!sourceTexture) continue;
+
+      const source = sourceTexture.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+      const width = source.width;
+      const height = source.height;
+
+      // Create a canvas to manipulate pixels
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d')!;
+
+      // Draw the original image
+      ctx.drawImage(source, 0, 0);
+
+      // Get pixel data and convert to white (keeping alpha)
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] > 0) { // If pixel has alpha
+          data[i] = 255;     // R = white
+          data[i + 1] = 255; // G = white
+          data[i + 2] = 255; // B = white
+          // Keep original alpha
+        }
       }
-    });
+      ctx.putImageData(imageData, 0, 0);
+
+      // Add the hit variant texture
+      this.textures.addCanvas(key + '-hit', canvas);
+    }
+
+    console.log('Textures ready:', this.textures.getTextureKeys().filter(k => !k.startsWith('__')).join(', '));
   }
 
   create() {
@@ -130,7 +171,7 @@ export class MainScene extends Phaser.Scene {
     this.trees = this.add.group();
     this.jumps = this.physics.add.staticGroup();
     this.holes = this.physics.add.staticGroup();
-    this.bullets = this.physics.add.group({ defaultKey: ATLAS_KEY, defaultFrame: 'bullet', maxSize: 30, runChildUpdate: false });
+    this.bullets = this.physics.add.group({ defaultKey: 'bullet', maxSize: 30, runChildUpdate: false });
     this.zombies = this.physics.add.group({});
     this.coins = this.physics.add.group({});
     this.shields = this.physics.add.group({});
@@ -141,7 +182,7 @@ export class MainScene extends Phaser.Scene {
     this.worldManager.spawnInitialTrees(this.scale.width / 2, this.scale.height / 2);
 
     // Create player
-    this.player = this.physics.add.sprite(this.scale.width / 2, this.scale.height / 2, ATLAS_KEY, 'player');
+    this.player = this.physics.add.sprite(this.scale.width / 2, this.scale.height / 2, 'player');
     this.player.setDepth(DEPTH.PLAYER);
     this.player.body.setSize(36, 36); // 25% smaller hitbox (48 * 0.75)
     this.player.body.setOffset(6, 6); // Center the hitbox
@@ -170,7 +211,7 @@ export class MainScene extends Phaser.Scene {
     this.cleanupPresence = hud.cleanupPresence;
 
     // Create shield bubble (hidden initially)
-    this.shieldBubble = this.add.sprite(0, 0, ATLAS_KEY, 'bubble');
+    this.shieldBubble = this.add.sprite(0, 0, 'bubble');
     this.shieldBubble.setVisible(false);
     this.shieldBubble.setDepth(DEPTH.SHIELD_BUBBLE);
     this.shieldBubble.setAlpha(0.7);
@@ -354,7 +395,7 @@ export class MainScene extends Phaser.Scene {
     p.setDepth(h.depth + 10);
 
     // Switch to stuck sprite (includes hole visual)
-    p.setTexture(ATLAS_KEY, 'player-stuck');
+    p.setTexture('player-stuck');
     this.currentPlayerTexture = 'player-stuck';
     h.setVisible(false); // Hide the hole since it's part of the stuck sprite
 
@@ -388,7 +429,7 @@ export class MainScene extends Phaser.Scene {
     this.time.delayedCall(4000, () => {
       this.isStuck = false;
       p.setDepth(DEPTH.PLAYER);
-      p.setTexture(ATLAS_KEY, 'player-down'); // Return to normal sprite
+      p.setTexture('player-down'); // Return to normal sprite
       this.currentPlayerTexture = 'player-down';
       p.angle = 0;
       wiggleTween.stop();
@@ -634,11 +675,11 @@ export class MainScene extends Phaser.Scene {
       if (flashUntil < now) {
         z.setData('flashUntil', now + 50);
         const baseFrame = z.getData('baseFrame') || 'zombie';
-        z.setTexture(ATLAS_KEY, baseFrame + '-hit');
+        z.setTexture(baseFrame + '-hit');
 
         this.time.delayedCall(50, () => {
           if (z.active) {
-            z.setTexture(ATLAS_KEY, baseFrame);
+            z.setTexture(baseFrame);
             const maxHealth = z.getData('maxHealth');
             const damageRatio = health / maxHealth;
             const isBoss = z.getData('isBoss');
@@ -708,10 +749,10 @@ export class MainScene extends Phaser.Scene {
       const flashUntil = r.getData('flashUntil') || 0;
       if (flashUntil < now) {
         r.setData('flashUntil', now + 50);
-        r.setTexture(ATLAS_KEY, 'robot-hit');
+        r.setTexture('robot-hit');
 
         this.time.delayedCall(50, () => {
-          if (r.active) r.setTexture(ATLAS_KEY, 'robot');
+          if (r.active) r.setTexture('robot');
         });
       }
     }
@@ -808,11 +849,11 @@ export class MainScene extends Phaser.Scene {
       if (flashUntil < now) {
         target.setData('flashUntil', now + 50);
         const baseFrame = target.getData('baseFrame') || (isRobot ? 'robot' : 'zombie');
-        target.setTexture(ATLAS_KEY, baseFrame + '-hit');
+        target.setTexture(baseFrame + '-hit');
 
         this.time.delayedCall(50, () => {
           if (target.active) {
-            target.setTexture(ATLAS_KEY, baseFrame);
+            target.setTexture(baseFrame);
             const maxHealth = target.getData('maxHealth');
             const damageRatio = health / maxHealth;
             const isRed = target.getData('isRed');
@@ -1010,7 +1051,7 @@ export class MainScene extends Phaser.Scene {
 
     // Only call setTexture when texture actually changes (Safari WebGL optimization)
     if (newTexture !== this.currentPlayerTexture) {
-      this.player.setTexture(ATLAS_KEY, newTexture);
+      this.player.setTexture(newTexture);
       this.currentPlayerTexture = newTexture;
     }
 
