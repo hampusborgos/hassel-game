@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import { playCoinPickup, playShieldPickup } from './sfxr';
 import { saveCoins } from './persistence';
 import { DEPTH } from './constants';
-import { ATLAS_KEY } from './MainScene';
 
 export class CollectibleManager {
   private scene: Phaser.Scene;
@@ -32,7 +31,7 @@ export class CollectibleManager {
   }
 
   spawnCoin(x: number, y: number): void {
-    const coin = this.coins.create(x, y, ATLAS_KEY, 'coin') as Phaser.Physics.Arcade.Sprite;
+    const coin = this.coins.create(x, y, 'coin') as Phaser.Physics.Arcade.Sprite;
     coin.setDepth(DEPTH.COLLECTIBLES);
 
     this.scene.tweens.add({
@@ -74,7 +73,7 @@ export class CollectibleManager {
   }
 
   spawnShield(x: number, y: number): void {
-    const shield = this.shields.create(x, y, ATLAS_KEY, 'shield') as Phaser.Physics.Arcade.Sprite;
+    const shield = this.shields.create(x, y, 'shield') as Phaser.Physics.Arcade.Sprite;
     shield.setDepth(y);
 
     const floatTween = this.scene.tweens.add({
