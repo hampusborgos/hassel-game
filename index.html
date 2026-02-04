@@ -20,19 +20,8 @@
     }
 
     #game-container {
-      width: 100dvw;
-      height: 100dvh;
-      transform-origin: center center;
-    }
-
-    /* Portrait mode on mobile - rotate the game */
-    @media screen and (orientation: portrait) and (max-width: 1024px) {
-      #game-container {
-        transform: rotate(90deg);
-        /* Swap dimensions */
-        width: 100dvh !important;
-        height: 100dvw !important;
-      }
+      position: fixed;
+      inset: 0;
     }
   </style>
 </head>
