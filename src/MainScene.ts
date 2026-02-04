@@ -88,7 +88,27 @@ export class MainScene extends Phaser.Scene {
     });
 
     this.load.on('complete', () => {
-      console.log('Assets loaded. Atlas frames:', Object.keys(this.textures.get(ATLAS_KEY)?.frames || {}).length);
+      const texture = this.textures.get(ATLAS_KEY);
+      const frameNames = Object.keys(texture?.frames || {});
+      console.log('Assets loaded. Atlas frames:', frameNames.length);
+
+      // Debug texture info for iOS issues
+      if (texture && texture.source && texture.source[0]) {
+        const source = texture.source[0];
+        console.log('Texture source:', {
+          width: source.width,
+          height: source.height,
+          glTexture: !!source.glTexture,
+          isRenderTexture: source.isRenderTexture
+        });
+      }
+    });
+
+    // Log loading progress
+    this.load.on('progress', (value: number) => {
+      if (value === 1) {
+        console.log('Loading complete, processing textures...');
+      }
     });
   }
 
