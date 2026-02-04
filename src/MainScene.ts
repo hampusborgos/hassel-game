@@ -3,7 +3,7 @@ import { VirtualJoystick, WeaponType } from './types';
 import { PLAYER_SPEED, PLAYER_SPEED_DOWN_BONUS, ROBOT_FIRST_WAVE, DEPTH } from './constants';
 import { initAudio, playHit, playJump, playLand, playStuckInHole, playWaveComplete } from './sfxr';
 import { loadCoins, loadOwnedWeapons, loadSelectedWeapon, saveOwnedWeapons } from './persistence';
-import { createMobileControls } from './controls';
+import { createMobileControls, repositionJoysticks } from './controls';
 import { createExplosion, createZombieExplosion, createShieldBreakEffect, createHoleSmokeEffect } from './effects';
 import { WorldManager } from './world';
 import { EnemyManager } from './enemies';
@@ -175,6 +175,10 @@ export class MainScene extends Phaser.Scene {
       this.leftJoystick = joysticks.leftJoystick;
       this.rightJoystick = joysticks.rightJoystick;
       this.hintText = null;
+
+      this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
+        repositionJoysticks(this.leftJoystick, this.rightJoystick, gameSize.width, gameSize.height);
+      });
     } else {
       this.hintText = this.add.bitmapText(this.scale.width / 2, this.scale.height - 20, UI_FONT_KEY, 'WASD/Arrows to move, Click to shoot', 14)
         .setTint(0x666666)
