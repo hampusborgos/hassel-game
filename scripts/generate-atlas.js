@@ -1,8 +1,8 @@
 import { Resvg } from '@resvg/resvg-js';
-import { createCanvas, loadImage } from 'canvas';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { PNG } from 'pngjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const assetsDir = path.join(__dirname, '../public/assets');
@@ -64,16 +64,43 @@ function packSprites(sprites, maxWidth = 512) {
   };
 }
 
-// Convert SVG to PNG buffer using resvg
-function svgToPng(svgContent, width, height) {
+// Convert SVG to PNG data using resvg, scaled to exact target dimensions
+function svgToPngData(svgContent, targetWidth, targetHeight) {
+  // Get the SVG's natural size from its viewBox or width/height attributes
+  const probe = new Resvg(svgContent);
+  const originalWidth = probe.width;
+  const originalHeight = probe.height;
+
+  // Calculate scale to fit within target dimensions while preserving aspect ratio
+  const scaleX = targetWidth / originalWidth;
+  const scaleY = targetHeight / originalHeight;
+  const scale = Math.min(scaleX, scaleY);
+
   const resvg = new Resvg(svgContent, {
     fitTo: {
-      mode: 'width',
-      value: width,
+      mode: 'zoom',
+      value: scale,
     },
   });
-  const pngData = resvg.render();
-  return pngData.asPng();
+
+  const rendered = resvg.render();
+  const renderedWidth = rendered.width;
+  const renderedHeight = rendered.height;
+
+  // If still larger than target, we need to crop/constrain
+  const finalWidth = Math.min(renderedWidth, targetWidth);
+  const finalHeight = Math.min(renderedHeight, targetHeight);
+
+  return {
+    data: rendered.pixels,
+    width: renderedWidth,
+    height: renderedHeight,
+    finalWidth,
+    finalHeight,
+    // Offset to center the sprite within the frame
+    offsetX: Math.floor((targetWidth - finalWidth) / 2),
+    offsetY: Math.floor((targetHeight - finalHeight) / 2),
+  };
 }
 
 async function generateAtlas() {
@@ -82,28 +109,51 @@ async function generateAtlas() {
   const { atlasWidth, atlasHeight, frames } = packSprites(sprites);
   console.log(`Atlas size: ${atlasWidth}x${atlasHeight}`);
 
-  // Create canvas
-  const canvas = createCanvas(atlasWidth, atlasHeight);
-  const ctx = canvas.getContext('2d');
+  // Create output PNG using pngjs (pure JS, better compatibility)
+  const atlas = new PNG({
+    width: atlasWidth,
+    height: atlasHeight,
+    colorType: 6, // RGBA
+    inputColorType: 6,
+    bitDepth: 8,
+  });
 
-  // Clear with transparent background
-  ctx.clearRect(0, 0, atlasWidth, atlasHeight);
+  // Initialize with transparent pixels
+  for (let i = 0; i < atlas.data.length; i += 4) {
+    atlas.data[i] = 0;     // R
+    atlas.data[i + 1] = 0; // G
+    atlas.data[i + 2] = 0; // B
+    atlas.data[i + 3] = 0; // A (transparent)
+  }
 
-  // Load and draw each sprite
+  // Render and place each sprite
   for (const sprite of sprites) {
     const svgPath = path.join(assetsDir, sprite.file);
     const svgContent = fs.readFileSync(svgPath, 'utf8');
 
     try {
-      // Convert SVG to PNG using resvg
-      const pngBuffer = svgToPng(svgContent, sprite.width, sprite.height);
-
-      // Load PNG into canvas
-      const img = await loadImage(pngBuffer);
+      const { data, width, height, finalWidth, finalHeight, offsetX, offsetY } = svgToPngData(svgContent, sprite.width, sprite.height);
       const frame = frames[sprite.name];
 
-      // Draw at correct position (may need to handle aspect ratio)
-      ctx.drawImage(img, frame.x, frame.y, sprite.width, sprite.height);
+      // Copy pixels to atlas (resvg returns RGBA data), centered within frame
+      // Only copy up to finalWidth/finalHeight to stay within frame bounds
+      for (let srcY = 0; srcY < finalHeight; srcY++) {
+        for (let srcX = 0; srcX < finalWidth; srcX++) {
+          const srcIdx = (srcY * width + srcX) * 4;
+          const dstX = frame.x + offsetX + srcX;
+          const dstY = frame.y + offsetY + srcY;
+
+          // Bounds check
+          if (dstX >= 0 && dstX < atlasWidth && dstY >= 0 && dstY < atlasHeight) {
+            const dstIdx = (dstY * atlasWidth + dstX) * 4;
+            atlas.data[dstIdx] = data[srcIdx];         // R
+            atlas.data[dstIdx + 1] = data[srcIdx + 1]; // G
+            atlas.data[dstIdx + 2] = data[srcIdx + 2]; // B
+            atlas.data[dstIdx + 3] = data[srcIdx + 3]; // A
+          }
+        }
+      }
+
       console.log(`  Added ${sprite.name} at (${frame.x}, ${frame.y}) ${sprite.width}x${sprite.height}`);
     } catch (err) {
       console.error(`  Failed to load ${sprite.name}: ${err.message}`);
@@ -111,8 +161,9 @@ async function generateAtlas() {
   }
 
   // Save atlas image as PNG
-  const pngBuffer = canvas.toBuffer('image/png');
-  fs.writeFileSync(path.join(outputDir, 'atlas.png'), pngBuffer);
+  const outputPath = path.join(outputDir, 'atlas.png');
+  const buffer = PNG.sync.write(atlas, { colorType: 6 });
+  fs.writeFileSync(outputPath, buffer);
   console.log('Saved atlas.png');
 
   // Generate Phaser-compatible JSON atlas

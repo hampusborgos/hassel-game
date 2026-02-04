@@ -81,6 +81,15 @@ export class MainScene extends Phaser.Scene {
   preload() {
     // Load texture atlas (all sprites packed into one texture for batched rendering)
     this.load.atlas(ATLAS_KEY, 'assets/atlas.png', 'assets/atlas.json');
+
+    // Log any load errors for debugging mobile issues
+    this.load.on('loaderror', (file: Phaser.Loader.File) => {
+      console.error('Failed to load:', file.key, file.src);
+    });
+
+    this.load.on('complete', () => {
+      console.log('Assets loaded. Atlas frames:', Object.keys(this.textures.get(ATLAS_KEY)?.frames || {}).length);
+    });
   }
 
   create() {
