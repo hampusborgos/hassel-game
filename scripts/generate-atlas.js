@@ -17,7 +17,9 @@ const sprites = [
   { name: 'player-stuck', file: 'player-stuck.svg', width: 64, height: 64 },
   { name: 'bullet', file: 'bullet.svg', width: 8, height: 16 },
   { name: 'zombie', file: 'zombie.svg', width: 40, height: 40 },
+  { name: 'zombie-hit', file: 'zombie.svg', width: 40, height: 40, isHitVariant: true },
   { name: 'boss-zombie', file: 'boss-zombie.svg', width: 64, height: 64 },
+  { name: 'boss-zombie-hit', file: 'boss-zombie.svg', width: 64, height: 64, isHitVariant: true },
   { name: 'tree', file: 'tree.svg', width: 40, height: 60 },
   { name: 'coin', file: 'coin.svg', width: 24, height: 24 },
   { name: 'shield', file: 'shield.svg', width: 32, height: 32 },
@@ -25,6 +27,7 @@ const sprites = [
   { name: 'jump', file: 'jump.svg', width: 64, height: 32 },
   { name: 'hole', file: 'hole.svg', width: 48, height: 32 },
   { name: 'robot', file: 'robot.svg', width: 40, height: 48 },
+  { name: 'robot-hit', file: 'robot.svg', width: 40, height: 48, isHitVariant: true },
 ];
 
 // Simple bin packing - arrange sprites in rows
@@ -103,6 +106,20 @@ function svgToPngData(svgContent, targetWidth, targetHeight) {
   };
 }
 
+// Convert all non-transparent pixels to white (for hit flash effect)
+function makeWhiteVersion(data, width, height) {
+  const white = Buffer.from(data);
+  for (let i = 0; i < white.length; i += 4) {
+    if (white[i + 3] > 0) { // If pixel has alpha (is visible)
+      white[i] = 255;     // R = white
+      white[i + 1] = 255; // G = white
+      white[i + 2] = 255; // B = white
+      // Keep original alpha unchanged
+    }
+  }
+  return white;
+}
+
 async function generateAtlas() {
   console.log('Generating texture atlas...');
 
@@ -135,6 +152,9 @@ async function generateAtlas() {
       const { data, width, height, finalWidth, finalHeight, offsetX, offsetY } = svgToPngData(svgContent, sprite.width, sprite.height);
       const frame = frames[sprite.name];
 
+      // For hit variants, convert all pixels to white
+      const pixelData = sprite.isHitVariant ? makeWhiteVersion(data, width, height) : data;
+
       // Copy pixels to atlas (resvg returns RGBA data), centered within frame
       // Only copy up to finalWidth/finalHeight to stay within frame bounds
       for (let srcY = 0; srcY < finalHeight; srcY++) {
@@ -146,15 +166,15 @@ async function generateAtlas() {
           // Bounds check
           if (dstX >= 0 && dstX < atlasWidth && dstY >= 0 && dstY < atlasHeight) {
             const dstIdx = (dstY * atlasWidth + dstX) * 4;
-            atlas.data[dstIdx] = data[srcIdx];         // R
-            atlas.data[dstIdx + 1] = data[srcIdx + 1]; // G
-            atlas.data[dstIdx + 2] = data[srcIdx + 2]; // B
-            atlas.data[dstIdx + 3] = data[srcIdx + 3]; // A
+            atlas.data[dstIdx] = pixelData[srcIdx];         // R
+            atlas.data[dstIdx + 1] = pixelData[srcIdx + 1]; // G
+            atlas.data[dstIdx + 2] = pixelData[srcIdx + 2]; // B
+            atlas.data[dstIdx + 3] = pixelData[srcIdx + 3]; // A
           }
         }
       }
 
-      console.log(`  Added ${sprite.name} at (${frame.x}, ${frame.y}) ${sprite.width}x${sprite.height}`);
+      console.log(`  Added ${sprite.name} at (${frame.x}, ${frame.y}) ${sprite.width}x${sprite.height}${sprite.isHitVariant ? ' (hit variant)' : ''}`);
     } catch (err) {
       console.error(`  Failed to load ${sprite.name}: ${err.message}`);
     }

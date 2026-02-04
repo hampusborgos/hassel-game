@@ -73,6 +73,7 @@ export class EnemyManager {
     boss.setData('points', 500 * healthMultiplier);
     boss.setData('isBoss', true);
     boss.setData('speedMultiplier', speedMultiplier);
+    boss.setData('baseFrame', 'boss-zombie');
 
     const barWidth = 80;
     const barHeight = 8;
@@ -132,6 +133,7 @@ export class EnemyManager {
 
     const zombie = this.zombies.create(x, y, ATLAS_KEY, 'zombie') as Phaser.Physics.Arcade.Sprite;
     zombie.setDepth(y);
+    zombie.setData('baseFrame', 'zombie');
 
     const redChance = Math.min(0.2 + waveNumber * 0.05, 0.5);
     const isRed = Math.random() < redChance;
@@ -142,6 +144,7 @@ export class EnemyManager {
       zombie.setData('maxHealth', 6);
       zombie.setData('points', 50);
       zombie.setScale(1.2);
+      zombie.setData('isRed', true);
     } else {
       zombie.setData('health', 1);
       zombie.setData('maxHealth', 1);
@@ -312,6 +315,7 @@ export class EnemyManager {
     robot.setData('maxHealth', 4);
     robot.setData('points', 75);
     robot.setData('isRobot', true);
+    robot.setData('baseFrame', 'robot');
 
     robot.setData('angle', angle);
     robot.rotation = angle + Math.PI / 2;
@@ -321,9 +325,10 @@ export class EnemyManager {
       Math.sin(angle) * ROBOT_SPEED
     );
 
-    robot.setTintFill(0xffffff);
+    // Spawn flash using frame swap instead of tint (Safari optimization)
+    robot.setTexture(ATLAS_KEY, 'robot-hit');
     this.scene.time.delayedCall(100, () => {
-      if (robot.active) robot.clearTint();
+      if (robot.active) robot.setTexture(ATLAS_KEY, 'robot');
     });
   }
 

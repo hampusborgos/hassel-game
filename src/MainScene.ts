@@ -4,7 +4,7 @@ import { PLAYER_SPEED, PLAYER_SPEED_DOWN_BONUS, ROBOT_FIRST_WAVE, DEPTH } from '
 import { initAudio, playHit, playJump, playLand, playStuckInHole, playWaveComplete } from './sfxr';
 import { loadCoins, loadOwnedWeapons, loadSelectedWeapon, saveOwnedWeapons } from './persistence';
 import { createMobileControls } from './controls';
-import { createExplosion, createShieldBreakEffect, createHoleSmokeEffect } from './effects';
+import { createExplosion, createZombieExplosion, createShieldBreakEffect, createHoleSmokeEffect } from './effects';
 import { WorldManager } from './world';
 import { EnemyManager } from './enemies';
 import { WeaponSystem } from './weapons';
@@ -474,6 +474,7 @@ export class MainScene extends Phaser.Scene {
     const points = zombie.getData('points') || 10;
     const maxHealth = zombie.getData('maxHealth') || 1;
     const isBoss = zombie.getData('isBoss');
+    const isRed = zombie.getData('isRed') || false;
 
     this.score += points * 10;
     updateScore(this.scoreText, this.score);
@@ -504,6 +505,7 @@ export class MainScene extends Phaser.Scene {
 
     zombie.destroy();
     createExplosion(this, x, y);
+    createZombieExplosion(this, x, y, isRed);
   }
 
   private explodeRobot(robot: Phaser.Physics.Arcade.Sprite) {
@@ -593,32 +595,44 @@ export class MainScene extends Phaser.Scene {
       }
 
       this.collectibleManager.tryDropShield(z.x, z.y, this.waveNumber);
+      const isRed = z.getData('isRed') || false;
+      createZombieExplosion(this, z.x, z.y, isRed);
       z.destroy();
     } else {
-      z.setTintFill(0xffffff);
-      this.time.delayedCall(50, () => {
-        if (z.active) {
-          const maxHealth = z.getData('maxHealth');
-          const damageRatio = health / maxHealth;
-          const isBoss = z.getData('isBoss');
+      // Debounced hit flash using frame swap (Safari optimization)
+      const now = this.time.now;
+      const flashUntil = z.getData('flashUntil') || 0;
+      if (flashUntil < now) {
+        z.setData('flashUntil', now + 50);
+        const baseFrame = z.getData('baseFrame') || 'zombie';
+        z.setTexture(ATLAS_KEY, baseFrame + '-hit');
 
-          if (isBoss) {
-            const brightness = Math.floor(0x88 + (0x77 * damageRatio));
-            z.setTint((brightness << 16) | (brightness << 8) | brightness);
-            const healthBarFg = z.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
-            const barWidth = z.getData('healthBarWidth') as number;
-            if (healthBarFg && barWidth) {
-              healthBarFg.width = barWidth * damageRatio;
+        this.time.delayedCall(50, () => {
+          if (z.active) {
+            z.setTexture(ATLAS_KEY, baseFrame);
+            const maxHealth = z.getData('maxHealth');
+            const damageRatio = health / maxHealth;
+            const isBoss = z.getData('isBoss');
+            const isRed = z.getData('isRed');
+
+            if (isBoss) {
+              const brightness = Math.floor(0x88 + (0x77 * damageRatio));
+              z.setTint((brightness << 16) | (brightness << 8) | brightness);
+              const healthBarFg = z.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
+              const barWidth = z.getData('healthBarWidth') as number;
+              if (healthBarFg && barWidth) {
+                healthBarFg.width = barWidth * damageRatio;
+              }
+            } else if (isRed) {
+              // Red zombies: fade from red to darker as damaged
+              const red = Math.floor(0xff * damageRatio);
+              const tint = (red << 16) | 0x4444;
+              z.setTint(tint);
             }
-          } else if (maxHealth > 1) {
-            const red = Math.floor(0xff * damageRatio);
-            const tint = (red << 16) | 0x4444;
-            z.setTint(tint);
-          } else {
-            z.clearTint();
+            // Regular zombies have no tint
           }
-        }
-      });
+        });
+      }
     }
 
     updateScore(this.scoreText, this.score);
@@ -660,10 +674,17 @@ export class MainScene extends Phaser.Scene {
       createExplosion(this, r.x, r.y);
       r.destroy();
     } else {
-      r.setTintFill(0xffffff);
-      this.time.delayedCall(50, () => {
-        if (r.active) r.clearTint();
-      });
+      // Debounced hit flash using frame swap (Safari optimization)
+      const now = this.time.now;
+      const flashUntil = r.getData('flashUntil') || 0;
+      if (flashUntil < now) {
+        r.setData('flashUntil', now + 50);
+        r.setTexture(ATLAS_KEY, 'robot-hit');
+
+        this.time.delayedCall(50, () => {
+          if (r.active) r.setTexture(ATLAS_KEY, 'robot');
+        });
+      }
     }
   }
 
@@ -742,35 +763,47 @@ export class MainScene extends Phaser.Scene {
           this.collectibleManager.spawnCoin(target.x, target.y);
         }
         this.collectibleManager.tryDropShield(target.x, target.y, this.waveNumber);
+        // Add colored explosion for non-boss zombies
+        const isRed = target.getData('isRed') || false;
+        createZombieExplosion(this, target.x, target.y, isRed);
       }
 
       createExplosion(this, target.x, target.y);
       target.destroy();
     } else {
-      // Flash white then show damage
-      target.setTintFill(0xffffff);
-      this.time.delayedCall(50, () => {
-        if (target.active) {
-          const maxHealth = target.getData('maxHealth');
-          const damageRatio = health / maxHealth;
+      // Debounced hit flash using frame swap (Safari optimization)
+      const now = this.time.now;
+      const flashUntil = target.getData('flashUntil') || 0;
+      if (flashUntil < now) {
+        target.setData('flashUntil', now + 50);
+        const baseFrame = target.getData('baseFrame') || (isRobot ? 'robot' : 'zombie');
+        target.setTexture(ATLAS_KEY, baseFrame + '-hit');
 
-          if (isBoss) {
-            const brightness = Math.floor(0x88 + (0x77 * damageRatio));
-            target.setTint((brightness << 16) | (brightness << 8) | brightness);
-            const healthBarFg = target.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
-            const barWidth = target.getData('healthBarWidth') as number;
-            if (healthBarFg && barWidth) {
-              healthBarFg.width = barWidth * damageRatio;
+        this.time.delayedCall(50, () => {
+          if (target.active) {
+            target.setTexture(ATLAS_KEY, baseFrame);
+            const maxHealth = target.getData('maxHealth');
+            const damageRatio = health / maxHealth;
+            const isRed = target.getData('isRed');
+
+            if (isBoss) {
+              const brightness = Math.floor(0x88 + (0x77 * damageRatio));
+              target.setTint((brightness << 16) | (brightness << 8) | brightness);
+              const healthBarFg = target.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
+              const barWidth = target.getData('healthBarWidth') as number;
+              if (healthBarFg && barWidth) {
+                healthBarFg.width = barWidth * damageRatio;
+              }
+            } else if (isRed) {
+              // Red zombies: fade from red to darker as damaged
+              const red = Math.floor(0xff * damageRatio);
+              const tint = (red << 16) | 0x4444;
+              target.setTint(tint);
             }
-          } else if (maxHealth > 1 && !isRobot) {
-            const red = Math.floor(0xff * damageRatio);
-            const tint = (red << 16) | 0x4444;
-            target.setTint(tint);
-          } else {
-            target.clearTint();
+            // Regular zombies and robots have no tint
           }
-        }
-      });
+        });
+      }
     }
   }
 
