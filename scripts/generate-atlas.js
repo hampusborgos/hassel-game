@@ -30,6 +30,11 @@ const sprites = [
   { name: 'robot-hit', file: 'robot.svg', width: 40, height: 48, isHitVariant: true },
 ];
 
+// Round up to next power of 2 (required for iOS WebGL compatibility)
+function nextPowerOf2(n) {
+  return Math.pow(2, Math.ceil(Math.log2(n)));
+}
+
 // Simple bin packing - arrange sprites in rows
 function packSprites(sprites, maxWidth = 512) {
   const padding = 2;
@@ -60,9 +65,17 @@ function packSprites(sprites, maxWidth = 512) {
     x += sprite.width + padding;
   }
 
+  // Pad to power-of-2 dimensions for iOS WebGL compatibility
+  const contentWidth = totalWidth;
+  const contentHeight = y + rowHeight;
+  const atlasWidth = nextPowerOf2(contentWidth);
+  const atlasHeight = nextPowerOf2(contentHeight);
+
   return {
-    atlasWidth: totalWidth,
-    atlasHeight: y + rowHeight,
+    atlasWidth,
+    atlasHeight,
+    contentWidth,
+    contentHeight,
     frames,
   };
 }
@@ -123,8 +136,9 @@ function makeWhiteVersion(data, width, height) {
 async function generateAtlas() {
   console.log('Generating texture atlas...');
 
-  const { atlasWidth, atlasHeight, frames } = packSprites(sprites);
-  console.log(`Atlas size: ${atlasWidth}x${atlasHeight}`);
+  const { atlasWidth, atlasHeight, contentWidth, contentHeight, frames } = packSprites(sprites);
+  console.log(`Content size: ${contentWidth}x${contentHeight}`);
+  console.log(`Atlas size (power-of-2 for iOS): ${atlasWidth}x${atlasHeight}`);
 
   // Create output PNG using pngjs (pure JS, better compatibility)
   const atlas = new PNG({
@@ -212,7 +226,7 @@ async function generateAtlas() {
   );
   console.log('Saved atlas.json');
 
-  console.log(`\nAtlas generated: ${atlasWidth}x${atlasHeight} pixels, ${sprites.length} sprites`);
+  console.log(`\nAtlas generated: ${atlasWidth}x${atlasHeight} pixels (power-of-2), ${sprites.length} sprites`);
 }
 
 generateAtlas().catch(console.error);
