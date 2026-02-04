@@ -1,6 +1,9 @@
 import { WeaponType } from './types';
 import { COINS_KEY, WEAPONS_KEY, SELECTED_WEAPON_KEY, HIGH_SCORES_KEY } from './constants';
+import { updatePlayerCoins, migrateCoinsFromLocalStorage } from './database';
 
+// Load coins from localStorage (fast, synchronous)
+// Call initializeCoins() early to migrate and sync with database
 export function loadCoins(): number {
   try {
     const stored = localStorage.getItem(COINS_KEY);
@@ -13,12 +16,23 @@ export function loadCoins(): number {
   return 0;
 }
 
+// Initialize coins: migrate from localStorage to database if needed
+// Returns the authoritative coin count from the database
+export async function initializeCoins(): Promise<number> {
+  return migrateCoinsFromLocalStorage();
+}
+
+// Save coins to both localStorage (quick access) and database (persistent)
 export function saveCoins(coinCount: number): void {
   try {
     localStorage.setItem(COINS_KEY, coinCount.toString());
   } catch {
     // Ignore localStorage errors
   }
+  // Also save to database (async, fire-and-forget)
+  updatePlayerCoins(coinCount).catch(() => {
+    // Ignore database errors - localStorage is our fallback
+  });
 }
 
 export function loadOwnedWeapons(): WeaponType[] {
