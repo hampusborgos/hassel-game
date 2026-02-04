@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { WeaponType } from './types';
-import { BULLET_SPEED, SHOOT_COOLDOWN, MACHINEGUN_COOLDOWN, RAILGUN_COOLDOWN, RAILGUN_DAMAGE, DEPTH } from './constants';
+import { BULLET_SPEED, SHOOT_COOLDOWN, MACHINEGUN_COOLDOWN, RAILGUN_COOLDOWN, RAILGUN_DAMAGE, SHOTGUN_COOLDOWN, SHOTGUN_KNOCKBACK, DEPTH } from './constants';
 import { playShotFired, playRailgun } from './sfxr';
 
 export interface RailgunHitCallback {
@@ -51,6 +51,13 @@ export class WeaponSystem {
       this.scene.time.delayedCall(RAILGUN_COOLDOWN, () => {
         this.canShoot = true;
       });
+    } else if (this.currentWeapon === 'shotgun') {
+      this.shootShotgun(aimAngle, offsetX, offsetY);
+      playShotFired();
+      this.canShoot = false;
+      this.scene.time.delayedCall(SHOTGUN_COOLDOWN, () => {
+        this.canShoot = true;
+      });
     } else {
       if (this.currentWeapon === 'double-barrel') {
         this.shootBullet(aimAngle - 0.1, offsetX, offsetY);
@@ -95,6 +102,47 @@ export class WeaponSystem {
         Math.sin(angle) * BULLET_SPEED
       );
     }
+  }
+
+  private shootShotgun(aimAngle: number, offsetX: number, offsetY: number): void {
+    // Random 8-11 bullets
+    const bulletCount = 8 + Math.floor(Math.random() * 4);
+    const spreadAngle = 0.35; // Tight arc (~20 degrees each side)
+
+    for (let i = 0; i < bulletCount; i++) {
+      const bullet = this.bullets.get(
+        this.player.x + offsetX,
+        this.player.y + offsetY
+      ) as Phaser.Physics.Arcade.Sprite;
+
+      if (bullet) {
+        // Random angle within the spread
+        const angleOffset = (Math.random() - 0.5) * spreadAngle * 2;
+        const bulletAngle = aimAngle + angleOffset;
+
+        // Slightly different velocity (0.85 to 1.15 of base speed)
+        const velocityMultiplier = 0.85 + Math.random() * 0.3;
+        const speed = BULLET_SPEED * velocityMultiplier;
+
+        bullet.setActive(true);
+        bullet.setVisible(true);
+        bullet.rotation = bulletAngle + Math.PI / 2;
+        bullet.setDepth(DEPTH.BULLETS);
+        bullet.setData('isBurstBullet', false);
+        bullet.setData('isRubberBullet', false);
+        bullet.setTint(0xffaa00); // Orange tint for shotgun pellets
+        bullet.setVelocity(
+          Math.cos(bulletAngle) * speed,
+          Math.sin(bulletAngle) * speed
+        );
+      }
+    }
+
+    // Push back the player (knockback in opposite direction of shot)
+    const knockbackX = -Math.cos(aimAngle) * SHOTGUN_KNOCKBACK;
+    const knockbackY = -Math.sin(aimAngle) * SHOTGUN_KNOCKBACK;
+    this.player.x += knockbackX;
+    this.player.y += knockbackY;
   }
 
   private shootRailgun(angle: number): void {

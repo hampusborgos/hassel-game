@@ -10,6 +10,8 @@ export const SHOOT_COOLDOWN = 150;
 export const MACHINEGUN_COOLDOWN = 86; // 75% faster than standard
 export const RAILGUN_COOLDOWN = 375; // 2.5x slower than standard
 export const RAILGUN_DAMAGE = 7;
+export const SHOTGUN_COOLDOWN = 420; // 2.8x slower than standard
+export const SHOTGUN_KNOCKBACK = 80; // Knockback distance for player
 
 // Enemies
 export const ZOMBIE_BASE_SPEED = 40;
@@ -70,5 +72,6 @@ export const WEAPONS: Record<WeaponType, WeaponInfo> = {
   'burst-shot': { name: 'Explosive Shot', cost: 250, description: 'Kills spawn 6 projectiles' },
   'railgun': { name: 'Railgun', cost: 500, description: 'Massive damage, pierces targets, slower fire' },
   'rubber': { name: 'Rubber Gun', cost: 100, description: 'Bouncing projectiles' },
-  'machinegun': { name: 'Machine Gun', cost: 150, description: '75% faster fire rate' }
+  'machinegun': { name: 'Machine Gun', cost: 150, description: '75% faster fire rate' },
+  'shotgun': { name: 'Shotgun', cost: 200, description: '8-11 shots, knockback, slower fire' }
 };

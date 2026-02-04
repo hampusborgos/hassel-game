@@ -63,7 +63,7 @@ export class ShopOverlay {
     const weaponsList = document.createElement('div');
     weaponsList.className = 'weapons-list';
 
-    const weaponKeys: WeaponType[] = ['default', 'double-barrel', 'rubber', 'burst-shot', 'railgun'];
+    const weaponKeys: WeaponType[] = ['default', 'double-barrel', 'rubber', 'shotgun', 'burst-shot', 'railgun'];
 
     weaponKeys.forEach((weaponKey) => {
       const weapon = WEAPONS[weaponKey];
