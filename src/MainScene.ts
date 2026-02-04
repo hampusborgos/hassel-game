@@ -14,9 +14,11 @@ import { createHUD, updateScore, updateWave } from './ui';
 import { GameOverOverlay, ShopOverlay } from './overlays';
 import { generateBitmapFont, UI_FONT_KEY } from './bitmapFont';
 
-// Module-level cache flags to skip expensive operations on scene restart
-let svgTexturesConverted = false;
+// Module-level cache flag for bitmap font generation
 let bitmapFontGenerated = false;
+
+// Atlas key constant - all sprites use this single texture
+export const ATLAS_KEY = 'atlas';
 
 export class MainScene extends Phaser.Scene {
   private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -77,65 +79,13 @@ export class MainScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.svg('player', 'assets/player.svg', { width: 48, height: 48 });
-    this.load.svg('player-down', 'assets/player-down.svg', { width: 48, height: 48 });
-    this.load.svg('player-left', 'assets/player-left.svg', { width: 48, height: 48 });
-    this.load.svg('player-right', 'assets/player-right.svg', { width: 48, height: 48 });
-    this.load.svg('player-stuck', 'assets/player-stuck.svg', { width: 64, height: 64 });
-    this.load.svg('bullet', 'assets/bullet.svg', { width: 8, height: 16 });
-    this.load.svg('zombie', 'assets/zombie.svg', { width: 40, height: 40 });
-    this.load.svg('boss-zombie', 'assets/boss-zombie.svg', { width: 64, height: 64 });
-    this.load.svg('tree', 'assets/tree.svg', { width: 40, height: 60 });
-    this.load.svg('coin', 'assets/coin.svg', { width: 24, height: 24 });
-    this.load.svg('shield', 'assets/shield.svg', { width: 32, height: 32 });
-    this.load.svg('bubble', 'assets/bubble.svg', { width: 64, height: 64 });
-    this.load.svg('jump', 'assets/jump.svg', { width: 64, height: 32 });
-    this.load.svg('hole', 'assets/hole.svg', { width: 48, height: 32 });
-    this.load.svg('robot', 'assets/robot.svg', { width: 40, height: 48 });
-  }
-
-  private convertSvgsToBitmaps() {
-    // Skip if already converted (expensive operation - only do once per page load)
-    if (svgTexturesConverted) return;
-
-    const svgKeys = [
-      'player', 'player-down', 'player-left', 'player-right', 'player-stuck',
-      'bullet', 'zombie', 'boss-zombie', 'tree', 'coin', 'shield', 'bubble',
-      'jump', 'hole', 'robot'
-    ];
-
-    for (const key of svgKeys) {
-      const frame = this.textures.getFrame(key);
-      if (!frame) continue;
-
-      // Create a RenderTexture the same size as the SVG
-      const rt = this.make.renderTexture({
-        width: frame.width,
-        height: frame.height
-      }, false);
-
-      // Draw the SVG sprite to the RenderTexture (from top-left corner)
-      rt.draw(key, 0, 0);
-
-      // Remove the old SVG texture
-      this.textures.remove(key);
-
-      // Save the bitmap with the same key
-      rt.saveTexture(key);
-
-      // Clean up the RenderTexture (texture is preserved)
-      rt.destroy();
-    }
-
-    svgTexturesConverted = true;
+    // Load texture atlas (all sprites packed into one texture for batched rendering)
+    this.load.atlas(ATLAS_KEY, 'assets/atlas.png', 'assets/atlas.json');
   }
 
   create() {
     // Generate bitmap font for iOS performance (avoids multiple canvas compositing)
     generateBitmapFont(this);
-
-    // Convert SVGs to bitmaps for iOS performance
-    this.convertSvgsToBitmaps();
 
     // Initialize audio on first interaction
     this.input.once('pointerdown', () => initAudio());
@@ -151,7 +101,7 @@ export class MainScene extends Phaser.Scene {
     this.trees = this.add.group();
     this.jumps = this.physics.add.staticGroup();
     this.holes = this.physics.add.staticGroup();
-    this.bullets = this.physics.add.group({ defaultKey: 'bullet', maxSize: 30, runChildUpdate: false });
+    this.bullets = this.physics.add.group({ defaultKey: ATLAS_KEY, defaultFrame: 'bullet', maxSize: 30, runChildUpdate: false });
     this.zombies = this.physics.add.group({});
     this.coins = this.physics.add.group({});
     this.shields = this.physics.add.group({});
@@ -162,7 +112,7 @@ export class MainScene extends Phaser.Scene {
     this.worldManager.spawnInitialTrees(this.scale.width / 2, this.scale.height / 2);
 
     // Create player
-    this.player = this.physics.add.sprite(this.scale.width / 2, this.scale.height / 2, 'player');
+    this.player = this.physics.add.sprite(this.scale.width / 2, this.scale.height / 2, ATLAS_KEY, 'player');
     this.player.setDepth(DEPTH.PLAYER);
     this.player.body.setSize(36, 36); // 25% smaller hitbox (48 * 0.75)
     this.player.body.setOffset(6, 6); // Center the hitbox
@@ -191,7 +141,7 @@ export class MainScene extends Phaser.Scene {
     this.cleanupPresence = hud.cleanupPresence;
 
     // Create shield bubble (hidden initially)
-    this.shieldBubble = this.add.sprite(0, 0, 'bubble');
+    this.shieldBubble = this.add.sprite(0, 0, ATLAS_KEY, 'bubble');
     this.shieldBubble.setVisible(false);
     this.shieldBubble.setDepth(DEPTH.SHIELD_BUBBLE);
     this.shieldBubble.setAlpha(0.7);
@@ -371,7 +321,7 @@ export class MainScene extends Phaser.Scene {
     p.setDepth(h.depth + 10);
 
     // Switch to stuck sprite (includes hole visual)
-    p.setTexture('player-stuck');
+    p.setTexture(ATLAS_KEY, 'player-stuck');
     this.currentPlayerTexture = 'player-stuck';
     h.setVisible(false); // Hide the hole since it's part of the stuck sprite
 
@@ -405,7 +355,7 @@ export class MainScene extends Phaser.Scene {
     this.time.delayedCall(4000, () => {
       this.isStuck = false;
       p.setDepth(DEPTH.PLAYER);
-      p.setTexture('player-down'); // Return to normal sprite
+      p.setTexture(ATLAS_KEY, 'player-down'); // Return to normal sprite
       this.currentPlayerTexture = 'player-down';
       p.angle = 0;
       wiggleTween.stop();
@@ -987,7 +937,7 @@ export class MainScene extends Phaser.Scene {
 
     // Only call setTexture when texture actually changes (Safari WebGL optimization)
     if (newTexture !== this.currentPlayerTexture) {
-      this.player.setTexture(newTexture);
+      this.player.setTexture(ATLAS_KEY, newTexture);
       this.currentPlayerTexture = newTexture;
     }
 
