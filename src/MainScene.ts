@@ -241,6 +241,14 @@ export class MainScene extends Phaser.Scene {
       this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
         repositionMobileControls(this.mobileControls, gameSize.width, gameSize.height);
       });
+
+      // Handle orientation changes (safe area insets change on rotation)
+      window.addEventListener('orientationchange', () => {
+        // Delay to allow browser to update safe area insets
+        setTimeout(() => {
+          repositionMobileControls(this.mobileControls, this.scale.width, this.scale.height);
+        }, 100);
+      });
     } else {
       this.hintText = this.add.bitmapText(this.scale.width / 2, this.scale.height - 20, UI_FONT_KEY, 'WASD/Arrows to move, Click to shoot', 14)
         .setTint(0x666666)

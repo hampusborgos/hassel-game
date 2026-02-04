@@ -3,6 +3,20 @@ import { VirtualJoystick } from './types';
 import { JOYSTICK_RADIUS, THUMB_RADIUS, DEPTH } from './constants';
 import { UI_FONT_KEY } from './bitmapFont';
 
+// Helper to get safe area insets from CSS custom properties
+function getSafeAreaInsets(): { top: number; right: number; bottom: number; left: number } {
+  const container = document.getElementById('game-container');
+  if (!container) return { top: 0, right: 0, bottom: 0, left: 0 };
+
+  const style = getComputedStyle(container);
+  return {
+    top: parseInt(style.getPropertyValue('--sai-top')) || 0,
+    right: parseInt(style.getPropertyValue('--sai-right')) || 0,
+    bottom: parseInt(style.getPropertyValue('--sai-bottom')) || 0,
+    left: parseInt(style.getPropertyValue('--sai-left')) || 0
+  };
+}
+
 export interface MobileControls {
   leftJoystick: VirtualJoystick;
   rightJoystick: VirtualJoystick;
@@ -16,9 +30,10 @@ export function createMobileControls(scene: Phaser.Scene): MobileControls {
   // Enable multi-touch
   scene.input.addPointer(1);
 
-  const leftX = 100;
-  const rightX = scene.scale.width - 100;
-  const joystickY = scene.scale.height - 100;
+  const insets = getSafeAreaInsets();
+  const leftX = 100 + insets.left;
+  const rightX = scene.scale.width - 100 - insets.right;
+  const joystickY = scene.scale.height - 100 - insets.bottom;
 
   // Left joystick (movement)
   const leftBase = scene.add.circle(leftX, joystickY, JOYSTICK_RADIUS, 0x444444, 0.5);
@@ -58,13 +73,14 @@ export function createMobileControls(scene: Phaser.Scene): MobileControls {
 
   if (!isStandalone) {
     // Create background rectangle for the button
-    const buttonBg = scene.add.rectangle(scene.scale.width / 2, 50, 160, 40, 0xcccccc)
+    const buttonY = 50 + insets.top;
+    const buttonBg = scene.add.rectangle(scene.scale.width / 2, buttonY, 160, 40, 0xcccccc)
       .setOrigin(0.5)
       .setDepth(DEPTH.HUD)
       .setScrollFactor(0)
       .setInteractive();
 
-    const fsButton = scene.add.bitmapText(scene.scale.width / 2, 50, UI_FONT_KEY, '[ Fullscreen ]', 20)
+    const fsButton = scene.add.bitmapText(scene.scale.width / 2, buttonY, UI_FONT_KEY, '[ Fullscreen ]', 20)
       .setTint(0x333333)
       .setOrigin(0.5)
       .setDepth(DEPTH.HUD + 1)
@@ -142,9 +158,10 @@ export function repositionMobileControls(
   width: number,
   height: number
 ): void {
-  const leftX = 100;
-  const rightX = width - 100;
-  const joystickY = height - 100;
+  const insets = getSafeAreaInsets();
+  const leftX = 100 + insets.left;
+  const rightX = width - 100 - insets.right;
+  const joystickY = height - 100 - insets.bottom;
 
   controls.leftJoystick.baseX = leftX;
   controls.leftJoystick.baseY = joystickY;
@@ -158,8 +175,9 @@ export function repositionMobileControls(
 
   // Reposition fullscreen button
   if (controls.fullscreenButton) {
-    controls.fullscreenButton.bg.setPosition(width / 2, 50);
-    controls.fullscreenButton.text.setPosition(width / 2, 50);
+    const buttonY = 50 + insets.top;
+    controls.fullscreenButton.bg.setPosition(width / 2, buttonY);
+    controls.fullscreenButton.text.setPosition(width / 2, buttonY);
   }
 }
 
