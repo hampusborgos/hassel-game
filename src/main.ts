@@ -31,7 +31,20 @@ const config: Phaser.Types.Core.GameConfig = {
 
 const game = new Phaser.Game(config);
 
-// Log renderer type for debugging
+// Log renderer type and WebGL info for debugging
 game.events.once('ready', () => {
-  console.log('Phaser renderer:', game.renderer.type === Phaser.WEBGL ? 'WebGL' : 'Canvas');
+  const isWebGL = game.renderer.type === Phaser.WEBGL;
+  console.log('Phaser renderer:', isWebGL ? 'WebGL' : 'Canvas');
+
+  if (isWebGL) {
+    const gl = (game.renderer as Phaser.Renderer.WebGL.WebGLRenderer).gl;
+    console.log('WebGL version:', gl.getParameter(gl.VERSION));
+    console.log('Max texture size:', gl.getParameter(gl.MAX_TEXTURE_SIZE));
+
+    // Check for WebGL errors
+    const error = gl.getError();
+    if (error !== gl.NO_ERROR) {
+      console.error('WebGL error on init:', error);
+    }
+  }
 });
