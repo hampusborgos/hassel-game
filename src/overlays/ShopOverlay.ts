@@ -164,8 +164,9 @@ export class ShopOverlay {
 
   private handleClose(): void {
     if (this.config) {
+      const onClose = this.config.onClose;
       this.hide();
-      this.config.onClose();
+      onClose();
     }
   }
 }
