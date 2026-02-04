@@ -40,7 +40,9 @@ const config: Phaser.Types.Core.GameConfig = {
     antialias: false,           // Faster rendering
     pixelArt: false,
     roundPixels: true,          // Avoid sub-pixel rendering overhead
-    powerPreference: 'high-performance'  // Request dedicated GPU
+    powerPreference: 'high-performance',  // Request dedicated GPU
+    premultipliedAlpha: true,   // Better mobile Safari WebGL compatibility
+    batchSize: 4096,            // Increase batch size for more sprites
   },
   physics: {
     default: 'arcade',
