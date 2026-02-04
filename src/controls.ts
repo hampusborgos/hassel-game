@@ -3,10 +3,16 @@ import { VirtualJoystick } from './types';
 import { JOYSTICK_RADIUS, THUMB_RADIUS, DEPTH } from './constants';
 import { UI_FONT_KEY } from './bitmapFont';
 
-export function createMobileControls(scene: Phaser.Scene): {
+export interface MobileControls {
   leftJoystick: VirtualJoystick;
   rightJoystick: VirtualJoystick;
-} {
+  fullscreenButton?: {
+    bg: Phaser.GameObjects.Rectangle;
+    text: Phaser.GameObjects.BitmapText;
+  };
+}
+
+export function createMobileControls(scene: Phaser.Scene): MobileControls {
   // Enable multi-touch
   scene.input.addPointer(1);
 
@@ -48,6 +54,8 @@ export function createMobileControls(scene: Phaser.Scene): {
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
     (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
 
+  let fullscreenButton: MobileControls['fullscreenButton'];
+
   if (!isStandalone) {
     // Create background rectangle for the button
     const buttonBg = scene.add.rectangle(scene.scale.width / 2, 50, 160, 40, 0xcccccc)
@@ -69,6 +77,8 @@ export function createMobileControls(scene: Phaser.Scene): {
         scene.scale.startFullscreen();
       }
     });
+
+    fullscreenButton = { bg: buttonBg, text: fsButton };
   }
 
   // Touch handlers
@@ -97,7 +107,7 @@ export function createMobileControls(scene: Phaser.Scene): {
     }
   });
 
-  return { leftJoystick, rightJoystick };
+  return { leftJoystick, rightJoystick, fullscreenButton };
 }
 
 export function updateJoystick(joystick: VirtualJoystick, pointer: Phaser.Input.Pointer): void {
@@ -127,9 +137,8 @@ export function resetJoystick(joystick: VirtualJoystick): void {
   joystick.vector.set(0, 0);
 }
 
-export function repositionJoysticks(
-  leftJoystick: VirtualJoystick,
-  rightJoystick: VirtualJoystick,
+export function repositionMobileControls(
+  controls: MobileControls,
   width: number,
   height: number
 ): void {
@@ -137,13 +146,29 @@ export function repositionJoysticks(
   const rightX = width - 100;
   const joystickY = height - 100;
 
-  leftJoystick.baseX = leftX;
-  leftJoystick.baseY = joystickY;
-  leftJoystick.base.setPosition(leftX, joystickY);
-  leftJoystick.thumb.setPosition(leftX, joystickY);
+  controls.leftJoystick.baseX = leftX;
+  controls.leftJoystick.baseY = joystickY;
+  controls.leftJoystick.base.setPosition(leftX, joystickY);
+  controls.leftJoystick.thumb.setPosition(leftX, joystickY);
 
-  rightJoystick.baseX = rightX;
-  rightJoystick.baseY = joystickY;
-  rightJoystick.base.setPosition(rightX, joystickY);
-  rightJoystick.thumb.setPosition(rightX, joystickY);
+  controls.rightJoystick.baseX = rightX;
+  controls.rightJoystick.baseY = joystickY;
+  controls.rightJoystick.base.setPosition(rightX, joystickY);
+  controls.rightJoystick.thumb.setPosition(rightX, joystickY);
+
+  // Reposition fullscreen button
+  if (controls.fullscreenButton) {
+    controls.fullscreenButton.bg.setPosition(width / 2, 50);
+    controls.fullscreenButton.text.setPosition(width / 2, 50);
+  }
+}
+
+// Backwards compatibility alias
+export function repositionJoysticks(
+  leftJoystick: VirtualJoystick,
+  rightJoystick: VirtualJoystick,
+  width: number,
+  height: number
+): void {
+  repositionMobileControls({ leftJoystick, rightJoystick }, width, height);
 }

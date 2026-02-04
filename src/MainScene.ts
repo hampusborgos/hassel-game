@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
-import { VirtualJoystick, WeaponType } from './types';
+import { WeaponType } from './types';
 import { PLAYER_SPEED, PLAYER_SPEED_DOWN_BONUS, ROBOT_FIRST_WAVE, ENDER_FIRST_WAVE, DEPTH } from './constants';
 import { initAudio, playHit, playJump, playLand, playStuckInHole, playWaveComplete } from './sfxr';
 import { loadCoins, loadOwnedWeapons, loadSelectedWeapon, saveOwnedWeapons } from './persistence';
-import { createMobileControls, repositionJoysticks } from './controls';
+import { createMobileControls, repositionMobileControls, MobileControls } from './controls';
 import { createExplosion, createZombieExplosion, createShieldBreakEffect, createHoleSmokeEffect, createEnderExplosion } from './effects';
 import { WorldManager } from './world';
 import { EnemyManager } from './enemies';
@@ -86,8 +86,7 @@ export class MainScene extends Phaser.Scene {
 
   // Mobile
   private isMobile = false;
-  private leftJoystick!: VirtualJoystick;
-  private rightJoystick!: VirtualJoystick;
+  private mobileControls!: MobileControls;
 
   // Overlays
   private gameOverOverlay!: GameOverOverlay;
@@ -236,13 +235,11 @@ export class MainScene extends Phaser.Scene {
     this.setupKeyboard();
 
     if (this.isMobile) {
-      const joysticks = createMobileControls(this);
-      this.leftJoystick = joysticks.leftJoystick;
-      this.rightJoystick = joysticks.rightJoystick;
+      this.mobileControls = createMobileControls(this);
       this.hintText = null;
 
       this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
-        repositionJoysticks(this.leftJoystick, this.rightJoystick, gameSize.width, gameSize.height);
+        repositionMobileControls(this.mobileControls, gameSize.width, gameSize.height);
       });
     } else {
       this.hintText = this.add.bitmapText(this.scale.width / 2, this.scale.height - 20, UI_FONT_KEY, 'WASD/Arrows to move, Click to shoot', 14)
@@ -1114,15 +1111,15 @@ export class MainScene extends Phaser.Scene {
     let isShooting = false;
 
     if (this.isMobile) {
-      vx = this.leftJoystick.vector.x * PLAYER_SPEED;
-      vy = this.leftJoystick.vector.y * PLAYER_SPEED;
+      vx = this.mobileControls.leftJoystick.vector.x * PLAYER_SPEED;
+      vy = this.mobileControls.leftJoystick.vector.y * PLAYER_SPEED;
 
       if (vy > 0) {
-        vy += PLAYER_SPEED_DOWN_BONUS * this.leftJoystick.vector.y;
+        vy += PLAYER_SPEED_DOWN_BONUS * this.mobileControls.leftJoystick.vector.y;
       }
 
-      if (this.rightJoystick.vector.length() > 0.1) {
-        this.aimAngle = Math.atan2(this.rightJoystick.vector.y, this.rightJoystick.vector.x);
+      if (this.mobileControls.rightJoystick.vector.length() > 0.1) {
+        this.aimAngle = Math.atan2(this.mobileControls.rightJoystick.vector.y, this.mobileControls.rightJoystick.vector.x);
         isShooting = true;
       }
     } else {
