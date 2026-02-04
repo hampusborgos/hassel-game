@@ -1,22 +1,9 @@
-/* Overlay container - positioned to cover the game canvas */
+/* Overlay container - positioned to cover the viewport */
 #overlay-container {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100dvw;
-  height: 100dvh;
+  inset: 0;
   pointer-events: none;
   z-index: 1000;
-  transform-origin: center center;
-}
-
-/* Portrait mode on mobile - rotate with the game */
-@media screen and (orientation: portrait) and (max-width: 1024px) {
-  #overlay-container {
-    transform: rotate(90deg);
-    width: 100dvh !important;
-    height: 100dvw !important;
-  }
 }
 
 /* Base overlay styling */
