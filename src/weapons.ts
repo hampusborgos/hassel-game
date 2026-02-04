@@ -15,6 +15,7 @@ export class WeaponSystem {
   public currentWeapon: WeaponType = 'default';
   private zombies?: Phaser.Physics.Arcade.Group;
   private robots?: Phaser.Physics.Arcade.Group;
+  private enders?: Phaser.Physics.Arcade.Group;
   private onRailgunHit?: RailgunHitCallback;
 
   constructor(
@@ -27,9 +28,10 @@ export class WeaponSystem {
     this.player = player;
   }
 
-  setEnemyGroups(zombies: Phaser.Physics.Arcade.Group, robots: Phaser.Physics.Arcade.Group): void {
+  setEnemyGroups(zombies: Phaser.Physics.Arcade.Group, robots: Phaser.Physics.Arcade.Group, enders?: Phaser.Physics.Arcade.Group): void {
     this.zombies = zombies;
     this.robots = robots;
+    this.enders = enders;
   }
 
   setRailgunHitCallback(callback: RailgunHitCallback): void {
@@ -173,6 +175,19 @@ export class WeaponSystem {
       const dist = this.pointToLineDistance(robot.x, robot.y, startX, startY, angle, rayLength);
       if (dist < hitRadius) {
         this.onRailgunHit(robot, RAILGUN_DAMAGE);
+      }
+    }
+
+    // Check all enders
+    if (this.enders) {
+      const enders = this.enders.getChildren() as Phaser.Physics.Arcade.Sprite[];
+      for (const ender of enders) {
+        if (!ender.active) continue;
+
+        const dist = this.pointToLineDistance(ender.x, ender.y, startX, startY, angle, rayLength);
+        if (dist < hitRadius) {
+          this.onRailgunHit(ender, RAILGUN_DAMAGE);
+        }
       }
     }
   }

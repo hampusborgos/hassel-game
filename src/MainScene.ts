@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
 import { VirtualJoystick, WeaponType } from './types';
-import { PLAYER_SPEED, PLAYER_SPEED_DOWN_BONUS, ROBOT_FIRST_WAVE, DEPTH } from './constants';
+import { PLAYER_SPEED, PLAYER_SPEED_DOWN_BONUS, ROBOT_FIRST_WAVE, ENDER_FIRST_WAVE, DEPTH } from './constants';
 import { initAudio, playHit, playJump, playLand, playStuckInHole, playWaveComplete } from './sfxr';
 import { loadCoins, loadOwnedWeapons, loadSelectedWeapon, saveOwnedWeapons } from './persistence';
 import { createMobileControls, repositionJoysticks } from './controls';
-import { createExplosion, createZombieExplosion, createShieldBreakEffect, createHoleSmokeEffect } from './effects';
+import { createExplosion, createZombieExplosion, createShieldBreakEffect, createHoleSmokeEffect, createEnderExplosion } from './effects';
 import { WorldManager } from './world';
 import { EnemyManager } from './enemies';
 import { WeaponSystem } from './weapons';
@@ -34,6 +34,7 @@ const SPRITE_DEFS = [
   { key: 'jump', file: 'assets/jump.svg', width: 64, height: 32 },
   { key: 'hole', file: 'assets/hole.svg', width: 48, height: 32 },
   { key: 'robot', file: 'assets/robot.svg', width: 40, height: 48 },
+  { key: 'ender-zombie', file: 'assets/ender-zombie.svg', width: 48, height: 48 },
 ];
 
 export class MainScene extends Phaser.Scene {
@@ -46,6 +47,7 @@ export class MainScene extends Phaser.Scene {
   private bullets!: Phaser.Physics.Arcade.Group;
   private zombies!: Phaser.Physics.Arcade.Group;
   private robots!: Phaser.Physics.Arcade.Group;
+  private enders!: Phaser.Physics.Arcade.Group;
   private trees!: Phaser.GameObjects.Group;
   private jumps!: Phaser.Physics.Arcade.StaticGroup;
   private holes!: Phaser.Physics.Arcade.StaticGroup;
@@ -69,6 +71,7 @@ export class MainScene extends Phaser.Scene {
   private robotBurstCount = 0;
   private robotBurstMax = 0;
   private robotCooldown = false;
+  private enderSpawnedThisWave = false;
   private ownedWeapons: WeaponType[] = ['default'];
   private currentWeapon: WeaponType = 'default';
   private currentPlayerTexture: string = 'player-down';
@@ -114,7 +117,7 @@ export class MainScene extends Phaser.Scene {
 
   private generateHitVariants() {
     // Generate white "hit flash" variants for enemies
-    const hitVariants = ['zombie', 'boss-zombie', 'robot'];
+    const hitVariants = ['zombie', 'boss-zombie', 'robot', 'ender-zombie'];
 
     for (const key of hitVariants) {
       const sourceTexture = this.textures.get(key);
@@ -176,6 +179,7 @@ export class MainScene extends Phaser.Scene {
     this.coins = this.physics.add.group({});
     this.shields = this.physics.add.group({});
     this.robots = this.physics.add.group({});
+    this.enders = this.physics.add.group({});
 
     // Create world manager and spawn initial terrain
     this.worldManager = new WorldManager(this, this.trees, this.jumps, this.holes);
@@ -192,9 +196,9 @@ export class MainScene extends Phaser.Scene {
     this.cameras.main.setDeadzone(100, 100);
 
     // Create managers
-    this.enemyManager = new EnemyManager(this, this.zombies, this.robots, this.player);
+    this.enemyManager = new EnemyManager(this, this.zombies, this.robots, this.player, this.enders);
     this.weaponSystem = new WeaponSystem(this, this.bullets, this.player);
-    this.weaponSystem.setEnemyGroups(this.zombies, this.robots);
+    this.weaponSystem.setEnemyGroups(this.zombies, this.robots, this.enders);
     this.weaponSystem.setRailgunHitCallback((target, damage) => this.handleRailgunHit(target, damage));
 
     // Load persistence data
@@ -334,6 +338,21 @@ export class MainScene extends Phaser.Scene {
     // Robot-player collision
     this.physics.add.overlap(
       this.player, this.robots,
+      this.handlePlayerHit as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+      () => !this.isJumping && !this.isInvulnerable,
+      this
+    );
+
+    // Bullet-ender collision
+    this.physics.add.overlap(
+      this.bullets, this.enders,
+      this.hitEnder as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+      undefined, this
+    );
+
+    // Ender-player collision
+    this.physics.add.overlap(
+      this.player, this.enders,
       this.handlePlayerHit as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
       () => !this.isJumping && !this.isInvulnerable,
       this
@@ -531,6 +550,16 @@ export class MainScene extends Phaser.Scene {
         this.explodeRobot(robot);
       }
     }
+
+    // Check enders
+    const enders = this.enders.getChildren() as Phaser.Physics.Arcade.Sprite[];
+    for (const ender of enders) {
+      if (!ender.active) continue;
+      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, ender.x, ender.y);
+      if (dist < landingRadius) {
+        this.explodeEnder(ender);
+      }
+    }
   }
 
   private explodeZombie(zombie: Phaser.Physics.Arcade.Sprite) {
@@ -595,6 +624,101 @@ export class MainScene extends Phaser.Scene {
     createExplosion(this, x, y);
     this.time.delayedCall(50, () => createExplosion(this, x + 10, y - 10));
     this.time.delayedCall(100, () => createExplosion(this, x - 10, y + 10));
+  }
+
+  private explodeEnder(ender: Phaser.Physics.Arcade.Sprite) {
+    const x = ender.x;
+    const y = ender.y;
+    const points = ender.getData('points') || 100;
+
+    this.score += points * 10; // Stomp bonus
+    updateScore(this.scoreText, this.score);
+
+    // Drop coins on stomp
+    const coinCount = Phaser.Math.Between(3, 6);
+    for (let i = 0; i < coinCount; i++) {
+      this.time.delayedCall(i * 60, () => {
+        const offsetX = Phaser.Math.Between(-30, 30);
+        const offsetY = Phaser.Math.Between(-30, 30);
+        this.collectibleManager.spawnCoin(x + offsetX, y + offsetY);
+      });
+    }
+
+    this.enemyManager.cleanupEnderTimers(ender);
+    ender.destroy();
+    createExplosion(this, x, y);
+    createEnderExplosion(this, x, y, Math.PI / 2); // Stomp comes from above
+    this.time.delayedCall(60, () => createExplosion(this, x + 15, y - 10));
+  }
+
+  private hitEnder(
+    bullet: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile,
+    ender: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Tilemaps.Tile
+  ) {
+    const b = bullet as Phaser.Physics.Arcade.Sprite;
+    const e = ender as Phaser.Physics.Arcade.Sprite;
+
+    // Skip if this rubber bullet just hit this target
+    if (b.getData('lastHitTarget') === e) return;
+
+    const isRubberBullet = b.getData('isRubberBullet');
+
+    if (isRubberBullet) {
+      this.bounceBullet(b, e);
+    } else {
+      b.setActive(false);
+      b.setVisible(false);
+    }
+    playHit();
+
+    const health = e.getData('health') - 1;
+    e.setData('health', health);
+
+    if (health <= 0) {
+      const points = e.getData('points') || 100;
+      this.score += points;
+      updateScore(this.scoreText, this.score);
+
+      // Chance to drop coin
+      if (Math.random() < 0.4) {
+        this.collectibleManager.spawnCoin(e.x, e.y);
+      }
+
+      if (this.weaponSystem.currentWeapon === 'burst-shot' && !b.getData('isBurstBullet')) {
+        this.weaponSystem.spawnBurstShots(e.x, e.y);
+      }
+
+      this.collectibleManager.tryDropShield(e.x, e.y, this.waveNumber);
+
+      // Get hit angle from bullet velocity
+      const bVelX = b.body?.velocity.x || 0;
+      const bVelY = b.body?.velocity.y || 0;
+      const hitAngle = Math.atan2(bVelY, bVelX);
+      createEnderExplosion(this, e.x, e.y, hitAngle);
+
+      this.enemyManager.cleanupEnderTimers(e);
+      e.destroy();
+    } else {
+      // Debounced hit flash
+      const now = this.time.now;
+      const flashUntil = e.getData('flashUntil') || 0;
+      if (flashUntil < now) {
+        e.setData('flashUntil', now + 50);
+        e.setTexture('ender-zombie-hit');
+
+        this.time.delayedCall(50, () => {
+          if (e.active) {
+            e.setTexture('ender-zombie');
+            const maxHealth = e.getData('maxHealth');
+            const damageRatio = health / maxHealth;
+            // Purple tint fade as damaged
+            const purple = Math.floor(0x99 * damageRatio);
+            const tint = (purple << 16) | (0x33 << 8) | 0xff;
+            e.setTint(tint);
+          }
+        });
+      }
+    }
   }
 
   private hitZombie(
@@ -798,9 +922,10 @@ export class MainScene extends Phaser.Scene {
     target.setData('health', health);
     const isBoss = target.getData('isBoss');
     const isRobot = target.getData('isRobot');
+    const isEnder = target.getData('isEnder');
 
     if (health <= 0) {
-      const points = target.getData('points') || (isRobot ? 75 : 10);
+      const points = target.getData('points') || (isRobot ? 75 : isEnder ? 100 : 10);
       this.score += points;
       updateScore(this.scoreText, this.score);
 
@@ -826,6 +951,15 @@ export class MainScene extends Phaser.Scene {
         const healthBarFg = target.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
         if (healthBarBg) healthBarBg.destroy();
         if (healthBarFg) healthBarFg.destroy();
+      } else if (isEnder) {
+        // Ender death
+        if (Math.random() < 0.4) {
+          this.collectibleManager.spawnCoin(target.x, target.y);
+        }
+        this.collectibleManager.tryDropShield(target.x, target.y, this.waveNumber);
+        const hitAngle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
+        createEnderExplosion(this, target.x, target.y, hitAngle);
+        this.enemyManager.cleanupEnderTimers(target);
       } else if (!isRobot) {
         // Regular zombie - chance to drop coin if red zombie
         const maxHealth = target.getData('maxHealth') || 1;
@@ -848,7 +982,7 @@ export class MainScene extends Phaser.Scene {
       const flashUntil = target.getData('flashUntil') || 0;
       if (flashUntil < now) {
         target.setData('flashUntil', now + 50);
-        const baseFrame = target.getData('baseFrame') || (isRobot ? 'robot' : 'zombie');
+        const baseFrame = target.getData('baseFrame') || (isRobot ? 'robot' : isEnder ? 'ender-zombie' : 'zombie');
         target.setTexture(baseFrame + '-hit');
 
         this.time.delayedCall(50, () => {
@@ -866,6 +1000,11 @@ export class MainScene extends Phaser.Scene {
               if (healthBarFg && barWidth) {
                 healthBarFg.width = barWidth * damageRatio;
               }
+            } else if (isEnder) {
+              // Ender: purple fade as damaged
+              const purple = Math.floor(0x99 * damageRatio);
+              const tint = (purple << 16) | (0x33 << 8) | 0xff;
+              target.setTint(tint);
             } else if (isRed) {
               // Red zombies: fade from red to darker as damaged
               const red = Math.floor(0xff * damageRatio);
@@ -958,6 +1097,7 @@ export class MainScene extends Phaser.Scene {
     this.isGameOver = false;
     this.robotBurstCount = 0;
     this.robotCooldown = false;
+    this.enderSpawnedThisWave = false;
     this.weaponSystem.setCanShoot(true);
     if (this.cleanupPresence) {
       this.cleanupPresence();
@@ -1066,13 +1206,39 @@ export class MainScene extends Phaser.Scene {
       this.waveNumber++;
       updateWave(this.waveText, this.waveNumber);
       this.enemyManager.spawnZombieWave(this.waveNumber);
+      this.enderSpawnedThisWave = false;
 
       if (this.waveNumber >= ROBOT_FIRST_WAVE && !this.robotCooldown && this.robotBurstCount === 0) {
         this.startRobotBurst();
       }
     }
 
+    // Spawn ender zombies mid-wave starting at wave 7
+    if (this.waveNumber >= ENDER_FIRST_WAVE && !this.enderSpawnedThisWave) {
+      const activeEnders = this.enders.getChildren().filter(e => (e as Phaser.Physics.Arcade.Sprite).active).length;
+      // Only spawn if no enders currently active
+      if (activeEnders === 0) {
+        this.enderSpawnedThisWave = true;
+
+        // Calculate number of enders: 1 at wave 7, +0.7 per wave with randomness
+        const wavesAfterFirst = this.waveNumber - ENDER_FIRST_WAVE;
+        const baseCount = 1 + wavesAfterFirst * 0.7;
+        const randomOffset = Phaser.Math.FloatBetween(-0.3, 0.3);
+        const enderCount = Math.max(1, Math.round(baseCount + randomOffset));
+
+        // Spawn enders with staggered delay
+        for (let i = 0; i < enderCount; i++) {
+          this.time.delayedCall(2000 + i * 800, () => {
+            if (!this.isGameOver) {
+              this.enemyManager.spawnEnderZombie();
+            }
+          });
+        }
+      }
+    }
+
     this.enemyManager.updateRobots();
+    this.enemyManager.updateEnders();
   }
 
   private startRobotBurst() {
