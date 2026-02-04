@@ -1,23 +1,35 @@
 import Phaser from 'phaser';
-import { ZOMBIE_BASE_SPEED, ROBOT_SPEED, BOSS_WAVES, MULTI_BOSS_WAVE, DEPTH } from './constants';
-import { playBossAmbiance, playRobotTelegraph, playRobotRun } from './sfxr';
+import { ZOMBIE_BASE_SPEED, ROBOT_SPEED, BOSS_WAVES, MULTI_BOSS_WAVE, DEPTH, ENDER_SPEED, ENDER_CHARGE_TIME_MIN, ENDER_CHARGE_TIME_MAX, ENDER_HEALTH } from './constants';
+import { playBossAmbiance, playRobotTelegraph, playRobotRun, playEnderTeleport, playEnderCharge } from './sfxr';
+import { createEnderChargeParticle, createEnderTeleportEffect } from './effects';
 
 export class EnemyManager {
   private scene: Phaser.Scene;
   private zombies: Phaser.Physics.Arcade.Group;
   private robots: Phaser.Physics.Arcade.Group;
+  private enders: Phaser.Physics.Arcade.Group;
   private player: Phaser.Physics.Arcade.Sprite;
 
   constructor(
     scene: Phaser.Scene,
     zombies: Phaser.Physics.Arcade.Group,
     robots: Phaser.Physics.Arcade.Group,
-    player: Phaser.Physics.Arcade.Sprite
+    player: Phaser.Physics.Arcade.Sprite,
+    enders?: Phaser.Physics.Arcade.Group
   ) {
     this.scene = scene;
     this.zombies = zombies;
     this.robots = robots;
     this.player = player;
+    this.enders = enders || scene.physics.add.group({});
+  }
+
+  setEndersGroup(enders: Phaser.Physics.Arcade.Group): void {
+    this.enders = enders;
+  }
+
+  getEndersGroup(): Phaser.Physics.Arcade.Group {
+    return this.enders;
   }
 
   spawnZombieWave(waveNumber: number): void {
@@ -352,6 +364,258 @@ export class EnemyManager {
           robot.y > cam.scrollY + cam.height + margin) {
         robot.destroy();
       }
+    }
+  }
+
+  // Ender zombie methods
+  spawnEnderZombie(): void {
+    const cam = this.scene.cameras.main;
+    const margin = 60;
+
+    // Spawn from random edge
+    const edge = Phaser.Math.Between(0, 3);
+    let x: number, y: number;
+
+    switch (edge) {
+      case 0: // top
+        x = Phaser.Math.Between(cam.scrollX + 50, cam.scrollX + cam.width - 50);
+        y = cam.scrollY - margin;
+        break;
+      case 1: // right
+        x = cam.scrollX + cam.width + margin;
+        y = Phaser.Math.Between(cam.scrollY + 50, cam.scrollY + cam.height - 50);
+        break;
+      case 2: // bottom
+        x = Phaser.Math.Between(cam.scrollX + 50, cam.scrollX + cam.width - 50);
+        y = cam.scrollY + cam.height + margin;
+        break;
+      case 3: // left
+      default:
+        x = cam.scrollX - margin;
+        y = Phaser.Math.Between(cam.scrollY + 50, cam.scrollY + cam.height - 50);
+        break;
+    }
+
+    const ender = this.enders.create(x, y, 'ender-zombie') as Phaser.Physics.Arcade.Sprite;
+    ender.setDepth(y);
+    ender.setData('health', ENDER_HEALTH);
+    ender.setData('maxHealth', ENDER_HEALTH);
+    ender.setData('points', 100);
+    ender.setData('isEnder', true);
+    ender.setData('baseFrame', 'ender-zombie');
+    ender.setData('state', 'charging'); // States: charging, teleporting, attacking, returning
+    ender.setData('spawnEdge', edge);
+    ender.setVelocity(0, 0);
+
+    // Start the charging sequence
+    this.startEnderCharge(ender);
+  }
+
+  private startEnderCharge(ender: Phaser.Physics.Arcade.Sprite): void {
+    ender.setData('state', 'charging');
+    ender.setVelocity(0, 0);
+
+    playEnderCharge();
+
+    const chargeTime = Phaser.Math.Between(ENDER_CHARGE_TIME_MIN, ENDER_CHARGE_TIME_MAX);
+    const particleInterval = 80;
+    let elapsed = 0;
+
+    // Spawn charging particles
+    const chargeTimer = this.scene.time.addEvent({
+      delay: particleInterval,
+      repeat: Math.floor(chargeTime / particleInterval),
+      callback: () => {
+        if (!ender.active) {
+          chargeTimer.destroy();
+          return;
+        }
+        createEnderChargeParticle(this.scene, ender.x, ender.y);
+        elapsed += particleInterval;
+
+        // Pulsing scale effect as charge builds
+        const progress = elapsed / chargeTime;
+        const pulseScale = 1 + Math.sin(progress * Math.PI * 4) * 0.1 * progress;
+        ender.setScale(pulseScale);
+      }
+    });
+
+    ender.setData('chargeTimer', chargeTimer);
+
+    // After charging, teleport behind player
+    this.scene.time.delayedCall(chargeTime, () => {
+      if (!ender.active) return;
+      chargeTimer.destroy();
+      ender.setScale(1);
+      this.teleportEnder(ender);
+    });
+  }
+
+  private teleportEnder(ender: Phaser.Physics.Arcade.Sprite): void {
+    if (!ender.active) return;
+
+    ender.setData('state', 'teleporting');
+    playEnderTeleport();
+
+    const fromX = ender.x;
+    const fromY = ender.y;
+
+    // Calculate position behind the player (opposite side of screen from player's facing)
+    const cam = this.scene.cameras.main;
+    const playerVelX = this.player.body?.velocity.x || 0;
+    const playerVelY = this.player.body?.velocity.y || 0;
+
+    // Determine "behind" based on player movement, or random if stationary
+    let behindAngle: number;
+    if (Math.abs(playerVelX) > 10 || Math.abs(playerVelY) > 10) {
+      // Behind is opposite of movement direction
+      behindAngle = Math.atan2(-playerVelY, -playerVelX);
+    } else {
+      // Random angle if player is stationary
+      behindAngle = Math.random() * Math.PI * 2;
+    }
+
+    // Position at edge of screen in that direction
+    const edgeDistance = Math.max(cam.width, cam.height) * 0.6;
+    let toX = this.player.x + Math.cos(behindAngle) * edgeDistance;
+    let toY = this.player.y + Math.sin(behindAngle) * edgeDistance;
+
+    // Clamp to just outside visible screen
+    const margin = 80;
+    toX = Phaser.Math.Clamp(toX, cam.scrollX - margin, cam.scrollX + cam.width + margin);
+    toY = Phaser.Math.Clamp(toY, cam.scrollY - margin, cam.scrollY + cam.height + margin);
+
+    // Create teleport effects
+    createEnderTeleportEffect(this.scene, fromX, fromY, toX, toY);
+
+    // Hide briefly during teleport
+    ender.setAlpha(0);
+
+    this.scene.time.delayedCall(150, () => {
+      if (!ender.active) return;
+      ender.setPosition(toX, toY);
+      ender.setAlpha(1);
+      ender.setDepth(toY);
+      this.startEnderAttack(ender);
+    });
+  }
+
+  private startEnderAttack(ender: Phaser.Physics.Arcade.Sprite): void {
+    if (!ender.active) return;
+
+    ender.setData('state', 'attacking');
+
+    // Store target position at start of attack (doesn't track)
+    const targetX = this.player.x;
+    const targetY = this.player.y;
+    ender.setData('targetX', targetX);
+    ender.setData('targetY', targetY);
+
+    const angle = Phaser.Math.Angle.Between(ender.x, ender.y, targetX, targetY);
+    ender.setData('attackAngle', angle);
+    ender.rotation = angle + Math.PI / 2;
+
+    ender.setVelocity(
+      Math.cos(angle) * ENDER_SPEED,
+      Math.sin(angle) * ENDER_SPEED
+    );
+  }
+
+  updateEnders(): void {
+    const cam = this.scene.cameras.main;
+    const margin = 300;
+
+    const enders = this.enders.getChildren() as Phaser.Physics.Arcade.Sprite[];
+    for (const ender of enders) {
+      if (!ender.active) continue;
+
+      const state = ender.getData('state');
+
+      // Only update depth when Y changes significantly
+      const lastDepthY = ender.getData('lastDepthY') || 0;
+      if (Math.abs(ender.y - lastDepthY) > 20) {
+        ender.setDepth(ender.y);
+        ender.setData('lastDepthY', ender.y);
+      }
+
+      // If attacking and went past the target, start returning/recharging
+      if (state === 'attacking') {
+        const targetX = ender.getData('targetX');
+        const targetY = ender.getData('targetY');
+        const attackAngle = ender.getData('attackAngle');
+
+        // Check if we've passed the target point
+        const dx = targetX - ender.x;
+        const dy = targetY - ender.y;
+        const dotProduct = dx * Math.cos(attackAngle) + dy * Math.sin(attackAngle);
+
+        // If dot product is negative, we've passed the target
+        // Or if we're way off screen, go back to edge
+        if (dotProduct < -50 ||
+            ender.x < cam.scrollX - margin ||
+            ender.x > cam.scrollX + cam.width + margin ||
+            ender.y < cam.scrollY - margin ||
+            ender.y > cam.scrollY + cam.height + margin) {
+          this.returnEnderToEdge(ender);
+        }
+      }
+
+      // If returning and reached edge, start charging again
+      if (state === 'returning') {
+        if (ender.x < cam.scrollX - 40 ||
+            ender.x > cam.scrollX + cam.width + 40 ||
+            ender.y < cam.scrollY - 40 ||
+            ender.y > cam.scrollY + cam.height + 40) {
+          this.startEnderCharge(ender);
+        }
+      }
+    }
+  }
+
+  private returnEnderToEdge(ender: Phaser.Physics.Arcade.Sprite): void {
+    if (!ender.active) return;
+
+    ender.setData('state', 'returning');
+
+    const cam = this.scene.cameras.main;
+
+    // Pick a random edge to return to
+    const edge = Phaser.Math.Between(0, 3);
+    let targetX: number, targetY: number;
+
+    switch (edge) {
+      case 0: // top
+        targetX = Phaser.Math.Between(cam.scrollX + 50, cam.scrollX + cam.width - 50);
+        targetY = cam.scrollY - 60;
+        break;
+      case 1: // right
+        targetX = cam.scrollX + cam.width + 60;
+        targetY = Phaser.Math.Between(cam.scrollY + 50, cam.scrollY + cam.height - 50);
+        break;
+      case 2: // bottom
+        targetX = Phaser.Math.Between(cam.scrollX + 50, cam.scrollX + cam.width - 50);
+        targetY = cam.scrollY + cam.height + 60;
+        break;
+      case 3: // left
+      default:
+        targetX = cam.scrollX - 60;
+        targetY = Phaser.Math.Between(cam.scrollY + 50, cam.scrollY + cam.height - 50);
+        break;
+    }
+
+    const angle = Phaser.Math.Angle.Between(ender.x, ender.y, targetX, targetY);
+    ender.rotation = angle + Math.PI / 2;
+
+    ender.setVelocity(
+      Math.cos(angle) * ENDER_SPEED * 0.7,
+      Math.sin(angle) * ENDER_SPEED * 0.7
+    );
+  }
+
+  cleanupEnderTimers(ender: Phaser.Physics.Arcade.Sprite): void {
+    const chargeTimer = ender.getData('chargeTimer') as Phaser.Time.TimerEvent;
+    if (chargeTimer) {
+      chargeTimer.destroy();
     }
   }
 }

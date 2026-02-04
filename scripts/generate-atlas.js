@@ -28,6 +28,8 @@ const sprites = [
   { name: 'hole', file: 'hole.svg', width: 48, height: 32 },
   { name: 'robot', file: 'robot.svg', width: 40, height: 48 },
   { name: 'robot-hit', file: 'robot.svg', width: 40, height: 48, isHitVariant: true },
+  { name: 'ender-zombie', file: 'ender-zombie.svg', width: 48, height: 48 },
+  { name: 'ender-zombie-hit', file: 'ender-zombie.svg', width: 48, height: 48, isHitVariant: true },
 ];
 
 // Round up to next power of 2 (required for iOS WebGL compatibility)

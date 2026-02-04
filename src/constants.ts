@@ -17,6 +17,11 @@ export const ROBOT_SPEED = 400;
 export const ROBOT_FIRST_WAVE = 5;
 export const BOSS_WAVES = [3, 6, 10];
 export const MULTI_BOSS_WAVE = 12;
+export const ENDER_FIRST_WAVE = 7;
+export const ENDER_SPEED = 350;
+export const ENDER_CHARGE_TIME_MIN = 2000;
+export const ENDER_CHARGE_TIME_MAX = 4000;
+export const ENDER_HEALTH = 18;
 
 // World generation
 export const TREE_SPAWN_INTERVAL = 150;

@@ -217,3 +217,187 @@ export function createStompExplosion(
     }
   }
 }
+
+export function createEnderChargeParticle(
+  scene: Phaser.Scene,
+  x: number,
+  y: number
+): Phaser.GameObjects.Arc {
+  // Spawn particles around the ender zombie that spiral inward
+  const angle = Math.random() * Math.PI * 2;
+  const distance = Phaser.Math.Between(40, 80);
+  const startX = x + Math.cos(angle) * distance;
+  const startY = y + Math.sin(angle) * distance;
+
+  const colors = [0x9933ff, 0xcc66ff, 0x7722dd, 0xaa44ff, 0x5500aa];
+  const color = colors[Phaser.Math.Between(0, colors.length - 1)];
+  const size = Phaser.Math.Between(3, 6);
+
+  const particle = scene.add.circle(startX, startY, size, color, 0.8);
+  particle.setDepth(DEPTH.EFFECTS);
+
+  // Spiral inward toward the ender zombie
+  scene.tweens.add({
+    targets: particle,
+    x: x,
+    y: y,
+    scale: 0.2,
+    alpha: 0,
+    duration: Phaser.Math.Between(400, 700),
+    ease: 'Quad.easeIn',
+    onComplete: () => {
+      particle.destroy();
+    }
+  });
+
+  return particle;
+}
+
+export function createEnderTeleportEffect(
+  scene: Phaser.Scene,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number
+): void {
+  // Disappear effect at origin
+  for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI * 2;
+    const particle = scene.add.circle(fromX, fromY, 5, 0x9933ff, 0.9);
+    particle.setDepth(DEPTH.EFFECTS);
+
+    scene.tweens.add({
+      targets: particle,
+      x: fromX + Math.cos(angle) * 60,
+      y: fromY + Math.sin(angle) * 60,
+      alpha: 0,
+      scale: 0.3,
+      duration: 300,
+      ease: 'Quad.easeOut',
+      onComplete: () => particle.destroy()
+    });
+  }
+
+  // Flash at origin
+  const flashFrom = scene.add.circle(fromX, fromY, 25, 0xcc66ff, 0.8);
+  flashFrom.setDepth(DEPTH.EFFECTS);
+  scene.tweens.add({
+    targets: flashFrom,
+    scale: 2,
+    alpha: 0,
+    duration: 250,
+    ease: 'Quad.easeOut',
+    onComplete: () => flashFrom.destroy()
+  });
+
+  // Appear effect at destination
+  scene.time.delayedCall(100, () => {
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const distance = 60;
+      const particle = scene.add.circle(
+        toX + Math.cos(angle) * distance,
+        toY + Math.sin(angle) * distance,
+        5, 0x9933ff, 0.9
+      );
+      particle.setDepth(DEPTH.EFFECTS);
+
+      scene.tweens.add({
+        targets: particle,
+        x: toX,
+        y: toY,
+        alpha: 0,
+        scale: 0.3,
+        duration: 300,
+        ease: 'Quad.easeIn',
+        onComplete: () => particle.destroy()
+      });
+    }
+
+    // Flash at destination
+    const flashTo = scene.add.circle(toX, toY, 25, 0xcc66ff, 0.8);
+    flashTo.setDepth(DEPTH.EFFECTS);
+    scene.tweens.add({
+      targets: flashTo,
+      scale: 2,
+      alpha: 0,
+      duration: 250,
+      ease: 'Quad.easeOut',
+      onComplete: () => flashTo.destroy()
+    });
+  });
+}
+
+export function createEnderExplosion(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  hitAngle?: number
+): void {
+  const particleCount = 10;
+  const colors = [0x9933ff, 0xcc66ff, 0x7722dd, 0x4a2a7a, 0x5c3a8c];
+
+  // Directional boost from hit angle
+  const boostX = hitAngle !== undefined ? Math.cos(hitAngle) * 80 : 0;
+  const boostY = hitAngle !== undefined ? Math.sin(hitAngle) * 40 : 0;
+
+  for (let i = 0; i < particleCount; i++) {
+    const color = colors[Phaser.Math.Between(0, colors.length - 1)];
+    const size = Phaser.Math.Between(4, 8);
+
+    const particle = scene.add.circle(x, y, size, color);
+    particle.setDepth(DEPTH.EXPLOSION);
+
+    const finalX = x + Phaser.Math.Between(-40, 40) + boostX;
+    const finalY = y + Phaser.Math.Between(15, 30) + boostY * 0.5;
+    const peakY = y - Phaser.Math.Between(50, 90) + boostY;
+
+    const duration = Phaser.Math.Between(350, 500);
+
+    scene.tweens.add({
+      targets: particle,
+      x: finalX,
+      duration: duration,
+      ease: 'Linear'
+    });
+
+    scene.tweens.add({
+      targets: particle,
+      y: peakY,
+      duration: duration * 0.35,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        scene.tweens.add({
+          targets: particle,
+          y: finalY,
+          duration: duration * 0.65,
+          ease: 'Quad.easeIn'
+        });
+      }
+    });
+
+    scene.tweens.add({
+      targets: particle,
+      alpha: 0,
+      scale: 0.3,
+      duration: duration,
+      delay: duration * 0.7,
+      ease: 'Linear',
+      onComplete: () => {
+        particle.destroy();
+      }
+    });
+  }
+
+  // Purple flash
+  const flash = scene.add.circle(x, y, 20, 0x9933ff, 0.7);
+  flash.setDepth(DEPTH.EXPLOSION - 1);
+  scene.tweens.add({
+    targets: flash,
+    scale: 1.8,
+    alpha: 0,
+    duration: 200,
+    ease: 'Quad.easeOut',
+    onComplete: () => flash.destroy()
+  });
+}
