@@ -11,7 +11,7 @@ export const MACHINEGUN_COOLDOWN = 86; // 75% faster than standard
 export const RAILGUN_COOLDOWN = 375; // 2.5x slower than standard
 export const RAILGUN_DAMAGE = 7;
 export const SHOTGUN_COOLDOWN = 420; // 2.8x slower than standard
-export const SHOTGUN_KNOCKBACK = 400; // Knockback velocity for player push
+export const SHOTGUN_KNOCKBACK = 700; // Knockback velocity for player push
 
 // Enemies
 export const ZOMBIE_BASE_SPEED = 40;
@@ -20,7 +20,7 @@ export const ROBOT_FIRST_WAVE = 5;
 export const BOSS_WAVES = [3, 6, 10];
 export const MULTI_BOSS_WAVE = 12;
 export const ENDER_FIRST_WAVE = 7;
-export const ENDER_SPEED = 350;
+export const ENDER_SPEED = 450;
 export const ENDER_CHARGE_TIME_MIN = 2000;
 export const ENDER_CHARGE_TIME_MAX = 4000;
 export const ENDER_HEALTH = 18;

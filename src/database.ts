@@ -454,11 +454,13 @@ export async function publishPresence(): Promise<void> {
   const player = await ensurePlayer();
   const room = getGameRoom();
 
-  room.publishPresence({
+  const presenceData = {
     name: player?.name || getLocalPlayerName(),
     avatarUrl: player?.avatarUrl || getLocalAvatarUrl(),
     playerId: player?.id || getPlayerToken(),
-  });
+  };
+  console.log('[Presence] Publishing:', presenceData);
+  room.publishPresence(presenceData);
 }
 
 // Subscribe to active players in the room (includes self and peers)
@@ -494,6 +496,7 @@ export function subscribeToActivePlayers(
   };
 
   const unsubPresence = room.subscribePresence({}, (data) => {
+    console.log('[Presence] Received:', { user: data.user, peerCount: data.peers ? Object.keys(data.peers).length : 0 });
     if (data.user) {
       currentUser = {
         oddjobId: 'self',
