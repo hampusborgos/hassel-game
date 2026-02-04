@@ -126,3 +126,24 @@ export function resetJoystick(joystick: VirtualJoystick): void {
   joystick.thumb.y = joystick.baseY;
   joystick.vector.set(0, 0);
 }
+
+export function repositionJoysticks(
+  leftJoystick: VirtualJoystick,
+  rightJoystick: VirtualJoystick,
+  width: number,
+  height: number
+): void {
+  const leftX = 100;
+  const rightX = width - 100;
+  const joystickY = height - 100;
+
+  leftJoystick.baseX = leftX;
+  leftJoystick.baseY = joystickY;
+  leftJoystick.base.setPosition(leftX, joystickY);
+  leftJoystick.thumb.setPosition(leftX, joystickY);
+
+  rightJoystick.baseX = rightX;
+  rightJoystick.baseY = joystickY;
+  rightJoystick.base.setPosition(rightX, joystickY);
+  rightJoystick.thumb.setPosition(rightX, joystickY);
+}

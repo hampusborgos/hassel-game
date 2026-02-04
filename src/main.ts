@@ -16,7 +16,7 @@ const config: Phaser.Types.Core.GameConfig = {
     pixelArt: false,
     roundPixels: true,          // Avoid sub-pixel rendering overhead
     powerPreference: 'high-performance',  // Request dedicated GPU
-    premultipliedAlpha: true,   // Better mobile Safari WebGL compatibility
+    premultipliedAlpha: false,  // PNG uses straight alpha, not premultiplied
     batchSize: 4096,            // Increase batch size for more sprites
   },
   physics: {
