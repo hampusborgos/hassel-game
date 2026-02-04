@@ -74,22 +74,37 @@ export function createHUD(
       ).setScrollFactor(0).setDepth(DEPTH.HUD);
       avatarElements.push(avatarBg);
 
-      // Load and display avatar image
-      const textureKey = `presence_avatar_${player.oddjobId}_${Date.now()}`;
+      // Load and display avatar image using filecomplete event for this specific image
+      const textureKey = `presence_avatar_${player.oddjobId}_${i}`;
       loadedTextures.push(textureKey);
 
       const avatarX = currentX - avatarSize / 2;
-      scene.load.image(textureKey, avatarUrl);
-      scene.load.once('complete', () => {
-        if (scene.textures.exists(textureKey)) {
-          const avatarImg = scene.add.image(avatarX, avatarY + avatarSize / 2, textureKey)
-            .setDisplaySize(avatarSize - 2, avatarSize - 2)
-            .setScrollFactor(0)
-            .setDepth(DEPTH.HUD + 1);
-          avatarElements.push(avatarImg);
-        }
-      });
-      scene.load.start();
+
+      // Skip if texture already exists (avoid reloading)
+      if (scene.textures.exists(textureKey)) {
+        const avatarImg = scene.add.image(avatarX, avatarY + avatarSize / 2, textureKey)
+          .setDisplaySize(avatarSize - 2, avatarSize - 2)
+          .setScrollFactor(0)
+          .setDepth(DEPTH.HUD + 1);
+        avatarElements.push(avatarImg);
+      } else {
+        // Set CORS for external images and use filecomplete for per-image callback
+        scene.load.setCORS('anonymous');
+        scene.load.image(textureKey, avatarUrl);
+
+        // Use filecomplete event which fires for each individual file
+        const onFileComplete = (key: string) => {
+          if (key === textureKey && scene.textures.exists(textureKey)) {
+            const avatarImg = scene.add.image(avatarX, avatarY + avatarSize / 2, textureKey)
+              .setDisplaySize(avatarSize - 2, avatarSize - 2)
+              .setScrollFactor(0)
+              .setDepth(DEPTH.HUD + 1);
+            avatarElements.push(avatarImg);
+          }
+        };
+        scene.load.once(`filecomplete-image-${textureKey}`, onFileComplete);
+        scene.load.start();
+      }
 
       currentX -= avatarSize + avatarGap;
     }
