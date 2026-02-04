@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { WeaponType } from './types';
 import { PLAYER_SPEED, PLAYER_SPEED_DOWN_BONUS, ROBOT_FIRST_WAVE, ENDER_FIRST_WAVE, DEPTH } from './constants';
 import { initAudio, playHit, playJump, playLand, playStuckInHole, playWaveComplete } from './sfxr';
-import { loadCoins, loadOwnedWeapons, loadSelectedWeapon, saveOwnedWeapons } from './persistence';
+import { loadCoins, loadOwnedWeapons, loadSelectedWeapon, saveOwnedWeapons, initializeCoins } from './persistence';
 import { createMobileControls, repositionMobileControls, MobileControls } from './controls';
 import { createExplosion, createZombieExplosion, createShieldBreakEffect, createHoleSmokeEffect, createEnderExplosion } from './effects';
 import { WorldManager } from './world';
@@ -224,6 +224,15 @@ export class MainScene extends Phaser.Scene {
       this, this.coins, this.shields, this.shieldBubble,
       initialCoinCount, this.coinText
     );
+
+    // Initialize coins from database (migrate if needed, sync if different)
+    initializeCoins().then((dbCoins) => {
+      if (dbCoins !== initialCoinCount && this.collectibleManager) {
+        // Database has different value (e.g., from migration or another device)
+        this.collectibleManager.coinCount = dbCoins;
+        this.coinText.setText(`Coins: ${dbCoins}`);
+      }
+    });
 
     // Spawn first wave
     this.enemyManager.spawnZombieWave(this.waveNumber);

@@ -9,6 +9,7 @@ const schema = i.schema({
       name: i.string(),
       token: i.string().unique().indexed(),
       avatarUrl: i.string().optional(),
+      coins: i.number().optional(),
       createdAt: i.number(),
     }),
     highScores: i.entity({
@@ -413,6 +414,86 @@ export function subscribeToPersonalBest(
 
 // Re-export id for convenience
 export { id };
+
+// ============================================
+// Coins Management
+// ============================================
+
+const COINS_MIGRATION_KEY = 'hasselgame_coins_migrated';
+const OLD_COINS_KEY = 'hasselgame_coins';
+
+// Get player coins from database
+export async function getPlayerCoins(): Promise<number> {
+  const player = await ensurePlayer();
+  return player?.coins ?? 0;
+}
+
+// Update player coins in database
+export async function updatePlayerCoins(coins: number): Promise<void> {
+  const player = await ensurePlayer();
+  if (player) {
+    await db.transact(db.tx.players[player.id].update({ coins }));
+  }
+}
+
+// Migrate coins from localStorage to database (run once)
+export async function migrateCoinsFromLocalStorage(): Promise<number> {
+  // Check if already migrated
+  if (localStorage.getItem(COINS_MIGRATION_KEY)) {
+    return getPlayerCoins();
+  }
+
+  // Get old coins from localStorage
+  const oldCoinsStr = localStorage.getItem(OLD_COINS_KEY);
+  const oldCoins = oldCoinsStr ? parseInt(oldCoinsStr, 10) || 0 : 0;
+
+  // Ensure player exists and get current DB coins
+  const player = await ensurePlayer();
+  if (!player) {
+    return oldCoins; // Fallback if player creation fails
+  }
+
+  // If player already has coins in DB, use the higher value
+  const dbCoins = player.coins ?? 0;
+  const finalCoins = Math.max(oldCoins, dbCoins);
+
+  // Update database with the final coin count
+  if (finalCoins > 0) {
+    await db.transact(db.tx.players[player.id].update({ coins: finalCoins }));
+  }
+
+  // Mark migration as complete
+  localStorage.setItem(COINS_MIGRATION_KEY, 'true');
+
+  // Keep localStorage updated as backup
+  if (oldCoins !== finalCoins) {
+    localStorage.setItem(OLD_COINS_KEY, finalCoins.toString());
+  }
+
+  return finalCoins;
+}
+
+// Subscribe to player coins changes
+export function subscribeToPlayerCoins(
+  callback: (coins: number) => void
+): () => void {
+  const token = getPlayerToken();
+
+  return db.subscribeQuery(
+    {
+      players: {
+        $: {
+          where: { token },
+        },
+      },
+    },
+    (resp) => {
+      if (resp.data && resp.data.players.length > 0) {
+        callback(resp.data.players[0].coins ?? 0);
+      }
+    }
+  );
+}
 
 // ============================================
 // Presence / Room API for active players
