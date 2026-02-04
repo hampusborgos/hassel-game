@@ -1,9 +1,9 @@
-// Sound effects using jsfxr
+// Sound effects using jsfxr with Web Audio API
 import { sfxr } from 'jsfxr';
 
-// Cache for generated audio elements
-const soundCache: Map<string, HTMLAudioElement[]> = new Map();
-const POOL_SIZE = 4; // Number of audio elements per sound for overlapping plays
+// Web Audio API context and buffer cache
+let audioContext: AudioContext | null = null;
+const bufferCache: Map<string, AudioBuffer> = new Map();
 
 // Sound presets using jsfxr object format
 const SOUNDS = {
@@ -219,7 +219,7 @@ const SOUNDS = {
     p_lpf_resonance: 0,
     p_hpf_freq: 0,
     p_hpf_ramp: 0,
-    sound_vol: 0.2,
+    sound_vol: 0.03,
     sample_rate: 44100,
     sample_size: 8
   },
@@ -475,55 +475,71 @@ const SOUNDS = {
 
 type SoundName = keyof typeof SOUNDS;
 
-// Initialize a sound pool
-function initSound(name: SoundName): HTMLAudioElement[] {
+// Get or create AudioContext
+function getAudioContext(): AudioContext {
+  if (!audioContext) {
+    audioContext = new AudioContext();
+  }
+  return audioContext;
+}
+
+// Initialize a sound buffer
+function initSound(name: SoundName): AudioBuffer {
+  const ctx = getAudioContext();
   const params = SOUNDS[name];
-  const wave = sfxr.toWave(params);
-  const pool: HTMLAudioElement[] = [];
 
-  for (let i = 0; i < POOL_SIZE; i++) {
-    const audio = new Audio(wave.dataURI);
-    audio.volume = 0.5;
-    pool.push(audio);
+  // Get raw sample buffer from jsfxr (cast needed - toBuffer exists but isn't typed)
+  const samples = (sfxr as unknown as { toBuffer: (p: typeof params) => number[] }).toBuffer(params);
+
+  // Create AudioBuffer and copy samples
+  const buffer = ctx.createBuffer(1, samples.length, params.sample_rate || 44100);
+  const channelData = buffer.getChannelData(0);
+  for (let i = 0; i < samples.length; i++) {
+    channelData[i] = samples[i];
   }
 
-  return pool;
+  return buffer;
 }
 
-// Get or create sound pool
-function getSoundPool(name: SoundName): HTMLAudioElement[] {
-  if (!soundCache.has(name)) {
-    soundCache.set(name, initSound(name));
-  }
-  return soundCache.get(name)!;
-}
-
-// Play a sound from the pool
+// Play a sound using Web Audio API
 function playSound(name: SoundName) {
-  const pool = getSoundPool(name);
+  const buffer = bufferCache.get(name);
+  if (!buffer) return;
 
-  // Find an audio element that's not currently playing
-  for (const audio of pool) {
-    if (audio.paused || audio.ended) {
-      audio.currentTime = 0;
-      audio.play().catch(() => {
-        // Ignore play errors (usually due to user interaction requirements)
-      });
-      return;
-    }
+  const ctx = getAudioContext();
+
+  // Resume context if suspended (browser autoplay policy)
+  if (ctx.state === 'suspended') {
+    ctx.resume();
   }
 
-  // If all are playing, reuse the first one
-  pool[0].currentTime = 0;
-  pool[0].play().catch(() => { });
+  // Create source node
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+
+  // Create gain node for volume control
+  const gain = ctx.createGain();
+  gain.gain.value = SOUNDS[name].sound_vol ?? 0.5;
+
+  // Connect and play
+  source.connect(gain);
+  gain.connect(ctx.destination);
+  source.start();
 }
 
 // Initialize audio on first user interaction
 export function initAudio() {
+  const ctx = getAudioContext();
+
+  // Resume context if suspended
+  if (ctx.state === 'suspended') {
+    ctx.resume();
+  }
+
   // Pre-initialize all sounds
-  Object.keys(SOUNDS).forEach((name) => {
-    getSoundPool(name as SoundName);
-  });
+  for (const name of Object.keys(SOUNDS)) {
+    bufferCache.set(name, initSound(name as SoundName));
+  }
 }
 
 // Export individual sound functions

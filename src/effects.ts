@@ -44,6 +44,83 @@ export function createExplosion(scene: Phaser.Scene, x: number, y: number): void
   });
 }
 
+export function createZombieExplosion(scene: Phaser.Scene, x: number, y: number, isRed: boolean): void {
+  const particleCount = 8;
+  // Blue colors for basic zombie, red colors for red zombie
+  const colors = isRed
+    ? [0xff4444, 0xff6666, 0xcc2222, 0xff8888]
+    : [0x44aaff, 0x66ccff, 0x2288cc, 0x88ddff];
+
+  for (let i = 0; i < particleCount; i++) {
+    const color = colors[Phaser.Math.Between(0, colors.length - 1)];
+    const size = Phaser.Math.Between(3, 7);
+
+    const particle = scene.add.circle(x, y, size, color);
+    particle.setDepth(DEPTH.EXPLOSION);
+
+    // Horizontal spread - particles land in a spread around the zombie
+    const finalX = x + Phaser.Math.Between(-50, 50);
+    // Land at zombie's feet (slightly below center)
+    const finalY = y + Phaser.Math.Between(15, 25);
+    // Peak height of the arc
+    const peakY = y - Phaser.Math.Between(40, 80);
+
+    const duration = Phaser.Math.Between(300, 450);
+
+    // Animate X linearly
+    scene.tweens.add({
+      targets: particle,
+      x: finalX,
+      duration: duration,
+      ease: 'Linear'
+    });
+
+    // Animate Y with arc: up to peak, then down to feet
+    scene.tweens.add({
+      targets: particle,
+      y: peakY,
+      duration: duration * 0.35,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        scene.tweens.add({
+          targets: particle,
+          y: finalY,
+          duration: duration * 0.65,
+          ease: 'Quad.easeIn'
+        });
+      }
+    });
+
+    // Fade out at the end
+    scene.tweens.add({
+      targets: particle,
+      alpha: 0,
+      scale: 0.3,
+      duration: duration,
+      delay: duration * 0.7,
+      ease: 'Linear',
+      onComplete: () => {
+        particle.destroy();
+      }
+    });
+  }
+
+  // Add a small flash circle with appropriate color
+  const flashColor = isRed ? 0xff6666 : 0x66ccff;
+  const flash = scene.add.circle(x, y, 15, flashColor, 0.6);
+  flash.setDepth(DEPTH.EXPLOSION - 1);
+  scene.tweens.add({
+    targets: flash,
+    scale: 1.5,
+    alpha: 0,
+    duration: 150,
+    ease: 'Quad.easeOut',
+    onComplete: () => {
+      flash.destroy();
+    }
+  });
+}
+
 export function createShieldBreakEffect(scene: Phaser.Scene, playerX: number, playerY: number): void {
   playShieldBreak();
 
