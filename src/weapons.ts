@@ -104,16 +104,18 @@ export class WeaponSystem {
     }
   }
 
-  private shootShotgun(aimAngle: number, offsetX: number, offsetY: number): void {
+  private shootShotgun(aimAngle: number, _offsetX: number, _offsetY: number): void {
     // Random 8-11 bullets
     const bulletCount = 8 + Math.floor(Math.random() * 4);
     const spreadAngle = 0.35; // Tight arc (~20 degrees each side)
 
+    // Shotgun blast originates slightly behind the player for a more powerful feel
+    const shotgunOffset = -5;
+    const spawnX = this.player.x + Math.cos(aimAngle) * shotgunOffset;
+    const spawnY = this.player.y + Math.sin(aimAngle) * shotgunOffset;
+
     for (let i = 0; i < bulletCount; i++) {
-      const bullet = this.bullets.get(
-        this.player.x + offsetX,
-        this.player.y + offsetY
-      ) as Phaser.Physics.Arcade.Sprite;
+      const bullet = this.bullets.get(spawnX, spawnY) as Phaser.Physics.Arcade.Sprite;
 
       if (bullet) {
         // Random angle within the spread
