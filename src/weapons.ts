@@ -1,10 +1,14 @@
 import Phaser from 'phaser';
 import { WeaponType } from './types';
-import { BULLET_SPEED, SHOOT_COOLDOWN, MACHINEGUN_COOLDOWN, RAILGUN_COOLDOWN, RAILGUN_DAMAGE, SHOTGUN_COOLDOWN, SHOTGUN_KNOCKBACK, DEPTH } from './constants';
-import { playShotFired, playRailgun } from './sfxr';
+import { BULLET_SPEED, SHOOT_COOLDOWN, MACHINEGUN_COOLDOWN, RAILGUN_COOLDOWN, RAILGUN_DAMAGE, SHOTGUN_COOLDOWN, SHOTGUN_KNOCKBACK, GRENADE_COOLDOWN, GRENADE_RANGE, GRENADE_FLIGHT_TIME, DEPTH } from './constants';
+import { playShotFired, playRailgun, playGrenadeLaunch } from './sfxr';
 
 export interface RailgunHitCallback {
   (target: Phaser.Physics.Arcade.Sprite, damage: number): void;
+}
+
+export interface GrenadeExplosionCallback {
+  (x: number, y: number, damage: number): void;
 }
 
 export class WeaponSystem {
@@ -17,6 +21,7 @@ export class WeaponSystem {
   private robots?: Phaser.Physics.Arcade.Group;
   private enders?: Phaser.Physics.Arcade.Group;
   private onRailgunHit?: RailgunHitCallback;
+  private onGrenadeExplode?: GrenadeExplosionCallback;
 
   constructor(
     scene: Phaser.Scene,
@@ -38,13 +43,24 @@ export class WeaponSystem {
     this.onRailgunHit = callback;
   }
 
-  shoot(aimAngle: number): void {
+  setGrenadeExplosionCallback(callback: GrenadeExplosionCallback): void {
+    this.onGrenadeExplode = callback;
+  }
+
+  shoot(aimAngle: number, aimDistance?: number): void {
     if (!this.canShoot) return;
 
     const offsetX = Math.cos(aimAngle) * 30;
     const offsetY = Math.sin(aimAngle) * 30;
 
-    if (this.currentWeapon === 'railgun') {
+    if (this.currentWeapon === 'grenade') {
+      this.shootGrenade(aimAngle, aimDistance);
+      playGrenadeLaunch();
+      this.canShoot = false;
+      this.scene.time.delayedCall(GRENADE_COOLDOWN, () => {
+        this.canShoot = true;
+      });
+    } else if (this.currentWeapon === 'railgun') {
       this.shootRailgun(aimAngle);
       playRailgun();
       this.canShoot = false;
@@ -165,6 +181,109 @@ export class WeaponSystem {
     this.checkRailgunHits(startX, startY, angle, rayLength);
   }
 
+  private shootGrenade(aimAngle: number, aimDistance?: number): void {
+    // Muzzle blast: push nearby enemies in front of the player away
+    this.grenadeMuzzleBlast(aimAngle);
+
+    // Land at cursor distance, clamped to max range (min 60 so it doesn't land on player)
+    const range = Math.max(60, Math.min(aimDistance ?? GRENADE_RANGE, GRENADE_RANGE));
+    const startX = this.player.x + Math.cos(aimAngle) * 20;
+    const startY = this.player.y + Math.sin(aimAngle) * 20;
+    const targetX = this.player.x + Math.cos(aimAngle) * range;
+    const targetY = this.player.y + Math.sin(aimAngle) * range;
+
+    // Create grenade projectile visual
+    const grenade = this.scene.add.circle(startX, startY, 6, 0x884400);
+    grenade.setDepth(DEPTH.EFFECTS);
+    grenade.setStrokeStyle(2, 0xff8800);
+
+    // Shadow on the ground
+    const shadow = this.scene.add.ellipse(startX, startY + 5, 10, 6, 0x000000, 0.3);
+    shadow.setDepth(DEPTH.BULLETS);
+
+    // Tween X/Y to target linearly
+    this.scene.tweens.add({
+      targets: [grenade, shadow],
+      x: targetX,
+      duration: GRENADE_FLIGHT_TIME,
+      ease: 'Linear'
+    });
+
+    this.scene.tweens.add({
+      targets: shadow,
+      y: targetY + 5,
+      duration: GRENADE_FLIGHT_TIME,
+      ease: 'Linear'
+    });
+
+    // Y for grenade arcs up then down (arc height scales with range)
+    const arcHeight = 30 + 50 * (range / GRENADE_RANGE);
+    const midY = Math.min(startY, targetY) - arcHeight;
+    this.scene.tweens.add({
+      targets: grenade,
+      y: midY,
+      duration: GRENADE_FLIGHT_TIME * 0.45,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.scene.tweens.add({
+          targets: grenade,
+          y: targetY,
+          duration: GRENADE_FLIGHT_TIME * 0.55,
+          ease: 'Quad.easeIn',
+          onComplete: () => {
+            // Grenade landed - explode
+            grenade.destroy();
+            shadow.destroy();
+            if (this.onGrenadeExplode) {
+              this.onGrenadeExplode(targetX, targetY, 15);
+            }
+          }
+        });
+      }
+    });
+
+    // Scale up during ascent, back down during descent
+    this.scene.tweens.add({
+      targets: grenade,
+      scale: 1.6,
+      duration: GRENADE_FLIGHT_TIME * 0.45,
+      ease: 'Quad.easeOut',
+      yoyo: true
+    });
+  }
+
+  private grenadeMuzzleBlast(aimAngle: number): void {
+    const muzzleRange = 80; // How far in front the blast reaches
+    const coneHalfAngle = Math.PI / 3; // 60 degree cone each side
+    const pushStrength = 250;
+
+    const allGroups = [this.zombies, this.robots, this.enders].filter(Boolean) as Phaser.Physics.Arcade.Group[];
+    for (const group of allGroups) {
+      const children = group.getChildren() as Phaser.Physics.Arcade.Sprite[];
+      for (const enemy of children) {
+        if (!enemy.active) continue;
+        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+        if (dist > muzzleRange) continue;
+
+        const angleToEnemy = Math.atan2(enemy.y - this.player.y, enemy.x - this.player.x);
+        let angleDiff = angleToEnemy - aimAngle;
+        // Normalize to -PI..PI
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+        if (Math.abs(angleDiff) < coneHalfAngle) {
+          const body = enemy.body as Phaser.Physics.Arcade.Body;
+          if (!body) continue;
+          const strength = pushStrength * (1 - dist / muzzleRange);
+          body.setVelocity(
+            body.velocity.x + Math.cos(aimAngle) * strength,
+            body.velocity.y + Math.sin(aimAngle) * strength
+          );
+        }
+      }
+    }
+  }
+
   private drawRailgunRay(startX: number, startY: number, endX: number, endY: number): void {
     // Create graphics for the ray
     const graphics = this.scene.add.graphics();
@@ -189,6 +308,43 @@ export class WeaponSystem {
     graphics.beginPath();
     graphics.moveTo(startX, startY);
     graphics.lineTo(endX, endY);
+    graphics.strokePath();
+
+    // Q2-style double helix spiral
+    const rayLength = Math.sqrt((endX - startX) ** 2 + (endY - startY) ** 2);
+    const rayAngle = Math.atan2(endY - startY, endX - startX);
+    const perpX = -Math.sin(rayAngle);
+    const perpY = Math.cos(rayAngle);
+    const spiralRadius = 10;
+    const spiralFrequency = 0.06; // tighter spiral
+    const steps = Math.floor(rayLength / 3);
+
+    // Spiral strand 1 (orange-red)
+    graphics.lineStyle(2, 0xff4400, 0.7);
+    graphics.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const along = t * rayLength;
+      const offset = Math.sin(along * spiralFrequency) * spiralRadius;
+      const px = startX + Math.cos(rayAngle) * along + perpX * offset;
+      const py = startY + Math.sin(rayAngle) * along + perpY * offset;
+      if (i === 0) graphics.moveTo(px, py);
+      else graphics.lineTo(px, py);
+    }
+    graphics.strokePath();
+
+    // Spiral strand 2 (blue, opposite phase)
+    graphics.lineStyle(2, 0x0066ff, 0.7);
+    graphics.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const along = t * rayLength;
+      const offset = Math.sin(along * spiralFrequency + Math.PI) * spiralRadius;
+      const px = startX + Math.cos(rayAngle) * along + perpX * offset;
+      const py = startY + Math.sin(rayAngle) * along + perpY * offset;
+      if (i === 0) graphics.moveTo(px, py);
+      else graphics.lineTo(px, py);
+    }
     graphics.strokePath();
 
     // Fade out the ray

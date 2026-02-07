@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { playShieldBreak, playStompKill } from './sfxr';
+import { playShieldBreak, playStompKill, playGrenadeExplosion } from './sfxr';
 import { DEPTH } from './constants';
 
 export function createExplosion(scene: Phaser.Scene, x: number, y: number): void {
@@ -326,6 +326,83 @@ export function createEnderTeleportEffect(
       onComplete: () => flashTo.destroy()
     });
   });
+}
+
+export function createGrenadeExplosion(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  blastRadius: number
+): void {
+  playGrenadeExplosion();
+
+  // Big flash at center
+  const flash = scene.add.circle(x, y, 40, 0xffaa00, 0.9);
+  flash.setDepth(DEPTH.EXPLOSION);
+  scene.tweens.add({
+    targets: flash,
+    scale: 3,
+    alpha: 0,
+    duration: 300,
+    ease: 'Quad.easeOut',
+    onComplete: () => flash.destroy()
+  });
+
+  // Shockwave ring
+  const ring = scene.add.circle(x, y, 10, 0xff6600, 0);
+  ring.setDepth(DEPTH.EXPLOSION);
+  ring.setStrokeStyle(3, 0xff8800, 0.8);
+  scene.tweens.add({
+    targets: ring,
+    scale: blastRadius / 10,
+    alpha: 0,
+    duration: 400,
+    ease: 'Quad.easeOut',
+    onComplete: () => ring.destroy()
+  });
+
+  // Fire particles
+  const particleCount = 18;
+  const colors = [0xff4400, 0xff8800, 0xffcc00, 0xff6600, 0xffaa00];
+  for (let i = 0; i < particleCount; i++) {
+    const angle = (i / particleCount) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.2, 0.2);
+    const dist = Phaser.Math.Between(60, blastRadius);
+    const color = colors[Phaser.Math.Between(0, colors.length - 1)];
+    const size = Phaser.Math.Between(4, 10);
+
+    const particle = scene.add.circle(x, y, size, color);
+    particle.setDepth(DEPTH.EXPLOSION);
+
+    scene.tweens.add({
+      targets: particle,
+      x: x + Math.cos(angle) * dist,
+      y: y + Math.sin(angle) * dist,
+      alpha: 0,
+      scale: 0.2,
+      duration: Phaser.Math.Between(300, 500),
+      ease: 'Quad.easeOut',
+      onComplete: () => particle.destroy()
+    });
+  }
+
+  // Smoke puffs (darker, slower)
+  for (let i = 0; i < 6; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = Phaser.Math.Between(20, 50);
+    const smoke = scene.add.circle(x, y, Phaser.Math.Between(8, 14), 0x444444, 0.5);
+    smoke.setDepth(DEPTH.EXPLOSION);
+
+    scene.tweens.add({
+      targets: smoke,
+      x: x + Math.cos(angle) * dist,
+      y: y + Math.sin(angle) * dist - 30,
+      alpha: 0,
+      scale: 2,
+      duration: Phaser.Math.Between(500, 800),
+      ease: 'Quad.easeOut',
+      onComplete: () => smoke.destroy()
+    });
+  }
 }
 
 export function createEnderExplosion(

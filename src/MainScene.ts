@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
 import { WeaponType } from './types';
-import { PLAYER_SPEED, PLAYER_SPEED_DOWN_BONUS, ROBOT_FIRST_WAVE, ENDER_FIRST_WAVE, DEPTH } from './constants';
+import { PLAYER_SPEED, PLAYER_SPEED_DOWN_BONUS, ROBOT_FIRST_WAVE, ENDER_FIRST_WAVE, GRENADE_BLAST_RADIUS, GRENADE_RANGE, DEPTH } from './constants';
 import { initAudio, playHit, playJump, playLand, playStuckInHole, playWaveComplete } from './sfxr';
 import { loadCoins, loadOwnedWeapons, loadSelectedWeapon, saveOwnedWeapons, initializeCoins } from './persistence';
 import { createMobileControls, repositionMobileControls, MobileControls } from './controls';
-import { createExplosion, createZombieExplosion, createShieldBreakEffect, createHoleSmokeEffect, createEnderExplosion } from './effects';
+import { createExplosion, createZombieExplosion, createShieldBreakEffect, createHoleSmokeEffect, createEnderExplosion, createGrenadeExplosion } from './effects';
 import { WorldManager } from './world';
 import { EnemyManager } from './enemies';
 import { WeaponSystem } from './weapons';
@@ -68,6 +68,7 @@ export class MainScene extends Phaser.Scene {
   private score = 0;
   private waveNumber = 1;
   private aimAngle = 0;
+  private aimDistance = 0;
   private robotBurstCount = 0;
   private robotBurstMax = 0;
   private robotCooldown = false;
@@ -199,6 +200,7 @@ export class MainScene extends Phaser.Scene {
     this.weaponSystem = new WeaponSystem(this, this.bullets, this.player);
     this.weaponSystem.setEnemyGroups(this.zombies, this.robots, this.enders);
     this.weaponSystem.setRailgunHitCallback((target, damage) => this.handleRailgunHit(target, damage));
+    this.weaponSystem.setGrenadeExplosionCallback((x, y, damage) => this.handleGrenadeExplosion(x, y, damage));
 
     // Load persistence data
     const initialCoinCount = loadCoins();
@@ -1032,6 +1034,116 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
+  private handleGrenadeExplosion(x: number, y: number, damage: number) {
+    const blastRadius = GRENADE_BLAST_RADIUS;
+    createGrenadeExplosion(this, x, y, blastRadius);
+
+    // Damage all zombies in radius
+    const zombies = this.zombies.getChildren() as Phaser.Physics.Arcade.Sprite[];
+    for (const zombie of zombies) {
+      if (!zombie.active) continue;
+      const dist = Phaser.Math.Distance.Between(x, y, zombie.x, zombie.y);
+      if (dist < blastRadius) {
+        const health = zombie.getData('health') - damage;
+        zombie.setData('health', health);
+        if (health <= 0) {
+          const points = zombie.getData('points') || 10;
+          this.score += points;
+          const isBoss = zombie.getData('isBoss');
+          if (isBoss) {
+            const coinCount = Phaser.Math.Between(5, 10);
+            for (let i = 0; i < coinCount; i++) {
+              this.time.delayedCall(i * 100, () => {
+                const ox = Phaser.Math.Between(-50, 50);
+                const oy = Phaser.Math.Between(-50, 50);
+                this.collectibleManager.spawnCoin(zombie.x + ox, zombie.y + oy);
+              });
+            }
+            const healthBarBg = zombie.getData('healthBarBg') as Phaser.GameObjects.Rectangle;
+            const healthBarFg = zombie.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
+            if (healthBarBg) healthBarBg.destroy();
+            if (healthBarFg) healthBarFg.destroy();
+          } else {
+            const maxHealth = zombie.getData('maxHealth') || 1;
+            if (maxHealth > 1 && Math.random() < 0.35) {
+              this.collectibleManager.spawnCoin(zombie.x, zombie.y);
+            }
+          }
+          this.collectibleManager.tryDropShield(zombie.x, zombie.y, this.waveNumber);
+          const isRed = zombie.getData('isRed') || false;
+          createZombieExplosion(this, zombie.x, zombie.y, isRed);
+          createExplosion(this, zombie.x, zombie.y);
+          zombie.destroy();
+        } else {
+          // Pushback surviving enemies away from blast center
+          this.applyGrenadePushback(zombie, x, y, dist, blastRadius);
+        }
+      }
+    }
+
+    // Damage all robots in radius
+    const robots = this.robots.getChildren() as Phaser.Physics.Arcade.Sprite[];
+    for (const robot of robots) {
+      if (!robot.active) continue;
+      const dist = Phaser.Math.Distance.Between(x, y, robot.x, robot.y);
+      if (dist < blastRadius) {
+        const health = robot.getData('health') - damage;
+        robot.setData('health', health);
+        if (health <= 0) {
+          const points = robot.getData('points') || 75;
+          this.score += points;
+          createExplosion(this, robot.x, robot.y);
+          robot.destroy();
+        } else {
+          this.applyGrenadePushback(robot, x, y, dist, blastRadius);
+        }
+      }
+    }
+
+    // Damage all enders in radius
+    const enders = this.enders.getChildren() as Phaser.Physics.Arcade.Sprite[];
+    for (const ender of enders) {
+      if (!ender.active) continue;
+      const dist = Phaser.Math.Distance.Between(x, y, ender.x, ender.y);
+      if (dist < blastRadius) {
+        const health = ender.getData('health') - damage;
+        ender.setData('health', health);
+        if (health <= 0) {
+          const points = ender.getData('points') || 100;
+          this.score += points;
+          if (Math.random() < 0.4) {
+            this.collectibleManager.spawnCoin(ender.x, ender.y);
+          }
+          this.collectibleManager.tryDropShield(ender.x, ender.y, this.waveNumber);
+          createEnderExplosion(this, ender.x, ender.y);
+          this.enemyManager.cleanupEnderTimers(ender);
+          createExplosion(this, ender.x, ender.y);
+          ender.destroy();
+        } else {
+          this.applyGrenadePushback(ender, x, y, dist, blastRadius);
+        }
+      }
+    }
+
+    updateScore(this.scoreText, this.score);
+  }
+
+  private applyGrenadePushback(
+    enemy: Phaser.Physics.Arcade.Sprite,
+    blastX: number, blastY: number,
+    dist: number, blastRadius: number
+  ) {
+    const body = enemy.body as Phaser.Physics.Arcade.Body;
+    if (!body) return;
+    const angle = Math.atan2(enemy.y - blastY, enemy.x - blastX);
+    // Stronger pushback the closer to the center (300 at center, fading to 0 at edge)
+    const strength = 300 * (1 - dist / blastRadius);
+    body.setVelocity(
+      body.velocity.x + Math.cos(angle) * strength,
+      body.velocity.y + Math.sin(angle) * strength
+    );
+  }
+
   private handlePlayerHit() {
     if (this.collectibleManager.hasShield) {
       this.collectibleManager.breakShield();
@@ -1137,6 +1249,7 @@ export class MainScene extends Phaser.Scene {
 
       if (this.mobileControls.rightJoystick.vector.length() > 0.1) {
         this.aimAngle = Math.atan2(this.mobileControls.rightJoystick.vector.y, this.mobileControls.rightJoystick.vector.x);
+        this.aimDistance = GRENADE_RANGE;
         isShooting = true;
       }
     } else {
@@ -1157,6 +1270,10 @@ export class MainScene extends Phaser.Scene {
         this.player.x, this.player.y,
         pointer.worldX, pointer.worldY
       );
+      this.aimDistance = Phaser.Math.Distance.Between(
+        this.player.x, this.player.y,
+        pointer.worldX, pointer.worldY
+      );
 
       isShooting = pointer.isDown;
     }
@@ -1171,7 +1288,7 @@ export class MainScene extends Phaser.Scene {
     this.collectibleManager.updateShieldBubble(this.player.x, this.player.y, this.player.depth);
 
     if (isShooting && this.weaponSystem.getCanShoot() && !this.isGameOver) {
-      this.weaponSystem.shoot(this.aimAngle);
+      this.weaponSystem.shoot(this.aimAngle, this.aimDistance);
     }
 
     this.weaponSystem.cleanupBullets();

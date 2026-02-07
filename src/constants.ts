@@ -9,9 +9,13 @@ export const BULLET_SPEED = 480; // 20% slower than original 600
 export const SHOOT_COOLDOWN = 150;
 export const MACHINEGUN_COOLDOWN = 86; // 75% faster than standard
 export const RAILGUN_COOLDOWN = 375; // 2.5x slower than standard
-export const RAILGUN_DAMAGE = 7;
+export const RAILGUN_DAMAGE = 15;
 export const SHOTGUN_COOLDOWN = 420; // 2.8x slower than standard
 export const SHOTGUN_KNOCKBACK = 700; // Knockback velocity for player push
+export const GRENADE_COOLDOWN = 420; // Same as shotgun
+export const GRENADE_RANGE = 280; // How far the grenade travels
+export const GRENADE_BLAST_RADIUS = 120; // AOE kill radius
+export const GRENADE_FLIGHT_TIME = 500; // ms for the arc
 
 // Enemies
 export const ZOMBIE_BASE_SPEED = 40;
@@ -73,5 +77,6 @@ export const WEAPONS: Record<WeaponType, WeaponInfo> = {
   'railgun': { name: 'Railgun', cost: 500, description: 'Massive damage, pierces targets, slower fire' },
   'rubber': { name: 'Rubber Gun', cost: 100, description: 'Bouncing projectiles' },
   'machinegun': { name: 'Machine Gun', cost: 150, description: '75% faster fire rate' },
-  'shotgun': { name: 'Shotgun', cost: 200, description: '8-11 shots, knockback, slower fire' }
+  'shotgun': { name: 'Shotgun', cost: 200, description: '8-11 shots, knockback, slower fire' },
+  'grenade': { name: 'Grenade Launcher', cost: 500, description: 'Arcing explosive, kills nearby zombies' }
 };
