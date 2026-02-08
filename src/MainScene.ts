@@ -79,6 +79,7 @@ export class MainScene extends Phaser.Scene {
   private ownedWeapons: WeaponType[] = ['default'];
   private currentWeapon: WeaponType = 'default';
   private currentPlayerTexture: string = 'player-down';
+  private multiKillTracker = new Map<number, { kills: number; basePoints: number; closestX: number; closestY: number; closestDist: number; timer?: Phaser.Time.TimerEvent }>();
 
   // UI
   private scoreText!: Phaser.GameObjects.BitmapText;
@@ -550,6 +551,11 @@ export class MainScene extends Phaser.Scene {
 
   private checkLandingOnEnemies() {
     const landingRadius = 40;
+    let stompKills = 0;
+    let stompBasePoints = 0;
+    let closestX = this.player.x;
+    let closestY = this.player.y;
+    let closestDist = Infinity;
 
     // Check zombies
     const zombies = this.zombies.getChildren() as Phaser.Physics.Arcade.Sprite[];
@@ -557,6 +563,10 @@ export class MainScene extends Phaser.Scene {
       if (!zombie.active) continue;
       const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, zombie.x, zombie.y);
       if (dist < landingRadius) {
+        const pts = (zombie.getData('points') || 10) * 10;
+        stompKills++;
+        stompBasePoints += pts;
+        if (dist < closestDist) { closestDist = dist; closestX = zombie.x; closestY = zombie.y; }
         this.explodeZombie(zombie);
       }
     }
@@ -567,6 +577,9 @@ export class MainScene extends Phaser.Scene {
       if (!robot.active) continue;
       const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, robot.x, robot.y);
       if (dist < landingRadius) {
+        stompKills++;
+        stompBasePoints += 1000;
+        if (dist < closestDist) { closestDist = dist; closestX = robot.x; closestY = robot.y; }
         this.explodeRobot(robot);
       }
     }
@@ -577,9 +590,15 @@ export class MainScene extends Phaser.Scene {
       if (!ender.active) continue;
       const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, ender.x, ender.y);
       if (dist < landingRadius) {
+        const pts = (ender.getData('points') || 100) * 10;
+        stompKills++;
+        stompBasePoints += pts;
+        if (dist < closestDist) { closestDist = dist; closestX = ender.x; closestY = ender.y; }
         this.explodeEnder(ender);
       }
     }
+
+    this.applyMultiKillBonus(stompKills, stompBasePoints, closestX, closestY);
   }
 
   private explodeZombie(zombie: Phaser.Physics.Arcade.Sprite) {
@@ -702,6 +721,8 @@ export class MainScene extends Phaser.Scene {
     if (health <= 0) {
       const points = e.getData('points') || 100;
       this.score += points;
+      const shotId = b.getData('shotId');
+      if (shotId !== undefined) this.trackMultiKill(shotId, points, e.x, e.y);
       updateScore(this.scoreText, this.score);
 
       // Chance to drop coin
@@ -773,6 +794,8 @@ export class MainScene extends Phaser.Scene {
     if (health <= 0) {
       const points = z.getData('points') || 10;
       this.score += points;
+      const shotId = b.getData('shotId');
+      if (shotId !== undefined) this.trackMultiKill(shotId, points, z.x, z.y);
 
       const isBoss = z.getData('isBoss');
       if (isBoss) {
@@ -900,6 +923,8 @@ export class MainScene extends Phaser.Scene {
     if (health <= 0) {
       const points = r.getData('points') || 75;
       this.score += points;
+      const shotId = b.getData('shotId');
+      if (shotId !== undefined) this.trackMultiKill(shotId, points, r.x, r.y);
       updateScore(this.scoreText, this.score);
 
       if (this.weaponSystem.currentWeapon === 'burst-shot' && !b.getData('isBurstBullet')) {
@@ -954,6 +979,59 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
+  private trackMultiKill(shotId: number, basePoints: number, x: number, y: number) {
+    let entry = this.multiKillTracker.get(shotId);
+    const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y);
+    if (!entry) {
+      entry = { kills: 0, basePoints: 0, closestX: x, closestY: y, closestDist: dist };
+      this.multiKillTracker.set(shotId, entry);
+    }
+    entry.kills++;
+    entry.basePoints += basePoints;
+    if (dist < entry.closestDist) {
+      entry.closestX = x;
+      entry.closestY = y;
+      entry.closestDist = dist;
+    }
+
+    if (entry.timer) entry.timer.destroy();
+
+    entry.timer = this.time.delayedCall(300, () => {
+      if (entry!.kills > 1) {
+        const bonus = Math.floor(entry!.basePoints * (Math.pow(entry!.kills, 0.5) - 1));
+        this.score += bonus;
+        updateScore(this.scoreText, this.score);
+        this.showMultiKillText(entry!.kills, bonus, entry!.closestX, entry!.closestY);
+      }
+      this.multiKillTracker.delete(shotId);
+    });
+  }
+
+  private applyMultiKillBonus(kills: number, basePoints: number, closestX: number, closestY: number) {
+    if (kills > 1) {
+      const bonus = Math.floor(basePoints * (Math.pow(kills, 0.5) - 1));
+      this.score += bonus;
+      updateScore(this.scoreText, this.score);
+      this.showMultiKillText(kills, bonus, closestX, closestY);
+    }
+  }
+
+  private showMultiKillText(kills: number, bonus: number, x: number, y: number) {
+    const text = this.add.bitmapText(x, y - 30, UI_FONT_KEY, `${kills}x KILL! +${bonus}`, 16)
+      .setOrigin(0.5)
+      .setTint(0xffff00)
+      .setDepth(DEPTH.EFFECTS);
+
+    this.tweens.add({
+      targets: text,
+      y: y - 80,
+      alpha: 0,
+      duration: 1200,
+      ease: 'Quad.easeOut',
+      onComplete: () => text.destroy()
+    });
+  }
+
   private handleRailgunHit(target: Phaser.Physics.Arcade.Sprite, damage: number) {
     if (!target.active) return;
 
@@ -969,6 +1047,7 @@ export class MainScene extends Phaser.Scene {
     if (health <= 0) {
       const points = target.getData('points') || (isRobot ? 75 : isEnder ? 100 : 10);
       this.score += points;
+      this.trackMultiKill(this.weaponSystem.getShotId(), points, target.x, target.y);
       updateScore(this.scoreText, this.score);
 
       if (isBoss) {
@@ -1079,6 +1158,12 @@ export class MainScene extends Phaser.Scene {
     const blastRadius = GRENADE_BLAST_RADIUS;
     createGrenadeExplosion(this, x, y, blastRadius);
 
+    let grenadeKills = 0;
+    let grenadeBasePoints = 0;
+    let closestX = x;
+    let closestY = y;
+    let closestDist = Infinity;
+
     // Damage all zombies in radius
     const zombies = this.zombies.getChildren() as Phaser.Physics.Arcade.Sprite[];
     for (const zombie of zombies) {
@@ -1090,6 +1175,10 @@ export class MainScene extends Phaser.Scene {
         if (health <= 0) {
           const points = zombie.getData('points') || 10;
           this.score += points;
+          grenadeKills++;
+          grenadeBasePoints += points;
+          const dtp = Phaser.Math.Distance.Between(this.player.x, this.player.y, zombie.x, zombie.y);
+          if (dtp < closestDist) { closestDist = dtp; closestX = zombie.x; closestY = zombie.y; }
           const isBoss = zombie.getData('isBoss');
           if (isBoss) {
             const coinCount = Phaser.Math.Between(5, 10);
@@ -1172,6 +1261,10 @@ export class MainScene extends Phaser.Scene {
         if (health <= 0) {
           const points = robot.getData('points') || 75;
           this.score += points;
+          grenadeKills++;
+          grenadeBasePoints += points;
+          const drp = Phaser.Math.Distance.Between(this.player.x, this.player.y, robot.x, robot.y);
+          if (drp < closestDist) { closestDist = drp; closestX = robot.x; closestY = robot.y; }
           createExplosion(this, robot.x, robot.y);
           robot.destroy();
         } else {
@@ -1191,6 +1284,10 @@ export class MainScene extends Phaser.Scene {
         if (health <= 0) {
           const points = ender.getData('points') || 100;
           this.score += points;
+          grenadeKills++;
+          grenadeBasePoints += points;
+          const dep = Phaser.Math.Distance.Between(this.player.x, this.player.y, ender.x, ender.y);
+          if (dep < closestDist) { closestDist = dep; closestX = ender.x; closestY = ender.y; }
           if (Math.random() < 0.4) {
             this.collectibleManager.spawnCoin(ender.x, ender.y);
           }
@@ -1205,6 +1302,7 @@ export class MainScene extends Phaser.Scene {
       }
     }
 
+    this.applyMultiKillBonus(grenadeKills, grenadeBasePoints, closestX, closestY);
     updateScore(this.scoreText, this.score);
   }
 
@@ -1308,6 +1406,7 @@ export class MainScene extends Phaser.Scene {
     this.isGameOver = false;
     this.robotBurstCount = 0;
     this.robotCooldown = false;
+    this.multiKillTracker.clear();
     this.enderSpawnedThisWave = false;
     this.weaponSystem.setCanShoot(true);
     if (this.cleanupPresence) {

@@ -22,6 +22,7 @@ export class WeaponSystem {
   private enders?: Phaser.Physics.Arcade.Group;
   private onRailgunHit?: RailgunHitCallback;
   private onGrenadeExplode?: GrenadeExplosionCallback;
+  private shotId = 0;
 
   constructor(
     scene: Phaser.Scene,
@@ -47,8 +48,13 @@ export class WeaponSystem {
     this.onGrenadeExplode = callback;
   }
 
+  getShotId(): number {
+    return this.shotId;
+  }
+
   shoot(aimAngle: number, aimDistance?: number): void {
     if (!this.canShoot) return;
+    this.shotId++;
 
     const offsetX = Math.cos(aimAngle) * 30;
     const offsetY = Math.sin(aimAngle) * 30;
@@ -103,6 +109,7 @@ export class WeaponSystem {
       bullet.rotation = angle + Math.PI / 2;
       bullet.setDepth(DEPTH.BULLETS);
       bullet.setData('isBurstBullet', false);
+      bullet.setData('shotId', this.shotId);
 
       // Rubber gun bullets are dark green and bounce
       if (this.currentWeapon === 'rubber') {
@@ -148,6 +155,7 @@ export class WeaponSystem {
         bullet.setDepth(DEPTH.BULLETS);
         bullet.setData('isBurstBullet', false);
         bullet.setData('isRubberBullet', false);
+        bullet.setData('shotId', this.shotId);
         bullet.setTint(0xffaa00); // Orange tint for shotgun pellets
         bullet.setVelocity(
           Math.cos(bulletAngle) * speed,
@@ -425,6 +433,7 @@ export class WeaponSystem {
   }
 
   spawnBurstShots(x: number, y: number): void {
+    this.shotId++;
     for (let i = 0; i < 10; i++) {
       const angle = (i / 10) * Math.PI * 2;
       const bullet = this.bullets.get(x, y) as Phaser.Physics.Arcade.Sprite;
@@ -435,6 +444,7 @@ export class WeaponSystem {
         bullet.rotation = angle + Math.PI / 2;
         bullet.setDepth(DEPTH.BULLETS);
         bullet.setData('isBurstBullet', true);
+        bullet.setData('shotId', this.shotId);
         bullet.setTint(0xff0000);
         bullet.setVelocity(
           Math.cos(angle) * BULLET_SPEED * 0.7,
