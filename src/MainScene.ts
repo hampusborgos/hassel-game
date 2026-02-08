@@ -4,7 +4,7 @@ import { PLAYER_SPEED, PLAYER_SPEED_DOWN_BONUS, ROBOT_FIRST_WAVE, ENDER_FIRST_WA
 import { initAudio, playHit, playJump, playLand, playStuckInHole, playWaveComplete } from './sfxr';
 import { loadCoins, loadOwnedWeapons, loadSelectedWeapon, saveOwnedWeapons, initializeCoins } from './persistence';
 import { createMobileControls, repositionMobileControls, MobileControls } from './controls';
-import { createExplosion, createZombieExplosion, createShieldBreakEffect, createHoleSmokeEffect, createEnderExplosion, createGrenadeExplosion } from './effects';
+import { createExplosion, createZombieExplosion, createShieldBreakEffect, createHoleSmokeEffect, createEnderExplosion, createGrenadeExplosion, createSnowmonsterExplosion } from './effects';
 import { WorldManager } from './world';
 import { EnemyManager } from './enemies';
 import { WeaponSystem } from './weapons';
@@ -35,6 +35,9 @@ const SPRITE_DEFS = [
   { key: 'hole', file: 'assets/hole.svg', width: 48, height: 32 },
   { key: 'robot', file: 'assets/robot.svg', width: 40, height: 48 },
   { key: 'ender-zombie', file: 'assets/ender-zombie.svg', width: 48, height: 48 },
+  { key: 'snowmonster', file: 'assets/snowmonster.svg', width: 64, height: 64 },
+  { key: 'snowmonster-throw', file: 'assets/snowmonster-throw.svg', width: 64, height: 64 },
+  { key: 'snowball', file: 'assets/snowball.svg', width: 16, height: 16 },
 ];
 
 export class MainScene extends Phaser.Scene {
@@ -117,7 +120,7 @@ export class MainScene extends Phaser.Scene {
 
   private generateHitVariants() {
     // Generate white "hit flash" variants for enemies
-    const hitVariants = ['zombie', 'boss-zombie', 'robot', 'ender-zombie'];
+    const hitVariants = ['zombie', 'boss-zombie', 'robot', 'ender-zombie', 'snowmonster', 'snowmonster-throw'];
 
     for (const key of hitVariants) {
       const sourceTexture = this.textures.get(key);
@@ -197,6 +200,7 @@ export class MainScene extends Phaser.Scene {
 
     // Create managers
     this.enemyManager = new EnemyManager(this, this.zombies, this.robots, this.player, this.enders);
+    this.enemyManager.setSnowballDamageCallback(() => this.handleSnowballHit());
     this.weaponSystem = new WeaponSystem(this, this.bullets, this.player);
     this.weaponSystem.setEnemyGroups(this.zombies, this.robots, this.enders);
     this.weaponSystem.setRailgunHitCallback((target, damage) => this.handleRailgunHit(target, damage));
@@ -585,6 +589,7 @@ export class MainScene extends Phaser.Scene {
     const maxHealth = zombie.getData('maxHealth') || 1;
     const isBoss = zombie.getData('isBoss');
     const isRed = zombie.getData('isRed') || false;
+    const isSnowmonster = zombie.getData('isSnowmonster') || false;
 
     this.score += points * 10;
     updateScore(this.scoreText, this.score);
@@ -616,7 +621,11 @@ export class MainScene extends Phaser.Scene {
     zombie.destroy();
     createExplosion(this, x, y);
     // Stomp comes from above - angle pointing down (PI/2)
-    createZombieExplosion(this, x, y, isRed, Math.PI / 2);
+    if (isSnowmonster) {
+      createSnowmonsterExplosion(this, x, y, Math.PI / 2);
+    } else {
+      createZombieExplosion(this, x, y, isRed, Math.PI / 2);
+    }
   }
 
   private explodeRobot(robot: Phaser.Physics.Arcade.Sprite) {
@@ -802,11 +811,16 @@ export class MainScene extends Phaser.Scene {
 
       this.collectibleManager.tryDropShield(z.x, z.y, this.waveNumber);
       const isRed = z.getData('isRed') || false;
+      const isSnowmonster = z.getData('isSnowmonster') || false;
       // Get hit angle from bullet velocity
       const bVelX = b.body?.velocity.x || 0;
       const bVelY = b.body?.velocity.y || 0;
       const hitAngle = Math.atan2(bVelY, bVelX);
-      createZombieExplosion(this, z.x, z.y, isRed, hitAngle);
+      if (isSnowmonster) {
+        createSnowmonsterExplosion(this, z.x, z.y, hitAngle);
+      } else {
+        createZombieExplosion(this, z.x, z.y, isRed, hitAngle);
+      }
       z.destroy();
     } else {
       // Debounced hit flash using frame swap (Safari optimization)
@@ -824,8 +838,19 @@ export class MainScene extends Phaser.Scene {
             const damageRatio = health / maxHealth;
             const isBoss = z.getData('isBoss');
             const isRed = z.getData('isRed');
+            const isSnowmonster = z.getData('isSnowmonster');
 
-            if (isBoss) {
+            if (isSnowmonster) {
+              // Snowmonster: icy blue tint fade as damaged
+              const blue = Math.floor(0xdd * damageRatio);
+              const tint = (0xaa << 16) | (blue << 8) | 0xff;
+              z.setTint(tint);
+              const healthBarFg = z.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
+              const barWidth = z.getData('healthBarWidth') as number;
+              if (healthBarFg && barWidth) {
+                healthBarFg.width = barWidth * damageRatio;
+              }
+            } else if (isBoss) {
               const brightness = Math.floor(0x88 + (0x77 * damageRatio));
               z.setTint((brightness << 16) | (brightness << 8) | brightness);
               const healthBarFg = z.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
@@ -939,6 +964,7 @@ export class MainScene extends Phaser.Scene {
     const isBoss = target.getData('isBoss');
     const isRobot = target.getData('isRobot');
     const isEnder = target.getData('isEnder');
+    const isSnowmonster = target.getData('isSnowmonster');
 
     if (health <= 0) {
       const points = target.getData('points') || (isRobot ? 75 : isEnder ? 100 : 10);
@@ -967,6 +993,11 @@ export class MainScene extends Phaser.Scene {
         const healthBarFg = target.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
         if (healthBarBg) healthBarBg.destroy();
         if (healthBarFg) healthBarFg.destroy();
+
+        if (isSnowmonster) {
+          const hitAngle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
+          createSnowmonsterExplosion(this, target.x, target.y, hitAngle);
+        }
       } else if (isEnder) {
         // Ender death
         if (Math.random() < 0.4) {
@@ -1008,7 +1039,17 @@ export class MainScene extends Phaser.Scene {
             const damageRatio = health / maxHealth;
             const isRed = target.getData('isRed');
 
-            if (isBoss) {
+            if (isSnowmonster) {
+              // Snowmonster: icy blue tint fade as damaged
+              const blue = Math.floor(0xdd * damageRatio);
+              const tint = (0xaa << 16) | (blue << 8) | 0xff;
+              target.setTint(tint);
+              const healthBarFg = target.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
+              const barWidth = target.getData('healthBarWidth') as number;
+              if (healthBarFg && barWidth) {
+                healthBarFg.width = barWidth * damageRatio;
+              }
+            } else if (isBoss) {
               const brightness = Math.floor(0x88 + (0x77 * damageRatio));
               target.setTint((brightness << 16) | (brightness << 8) | brightness);
               const healthBarFg = target.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
@@ -1071,12 +1112,51 @@ export class MainScene extends Phaser.Scene {
           }
           this.collectibleManager.tryDropShield(zombie.x, zombie.y, this.waveNumber);
           const isRed = zombie.getData('isRed') || false;
-          createZombieExplosion(this, zombie.x, zombie.y, isRed);
+          const isSnowmonster = zombie.getData('isSnowmonster') || false;
+          if (isSnowmonster) {
+            createSnowmonsterExplosion(this, zombie.x, zombie.y);
+          } else {
+            createZombieExplosion(this, zombie.x, zombie.y, isRed);
+          }
           createExplosion(this, zombie.x, zombie.y);
           zombie.destroy();
         } else {
           // Pushback surviving enemies away from blast center
           this.applyGrenadePushback(zombie, x, y, dist, blastRadius);
+
+          // Update health bar and hit flash for surviving bosses
+          const isBoss = zombie.getData('isBoss');
+          if (isBoss) {
+            const maxHealth = zombie.getData('maxHealth');
+            const damageRatio = health / maxHealth;
+            const healthBarFg = zombie.getData('healthBarFg') as Phaser.GameObjects.Rectangle;
+            const barWidth = zombie.getData('healthBarWidth') as number;
+            if (healthBarFg && barWidth) {
+              healthBarFg.width = barWidth * damageRatio;
+            }
+
+            // Hit flash
+            const now = this.time.now;
+            const flashUntil = zombie.getData('flashUntil') || 0;
+            if (flashUntil < now) {
+              zombie.setData('flashUntil', now + 50);
+              const baseFrame = zombie.getData('baseFrame') || 'boss-zombie';
+              zombie.setTexture(baseFrame + '-hit');
+              this.time.delayedCall(50, () => {
+                if (zombie.active) {
+                  zombie.setTexture(zombie.getData('baseFrame') || 'boss-zombie');
+                  const isSnowmonster = zombie.getData('isSnowmonster');
+                  if (isSnowmonster) {
+                    const blue = Math.floor(0xdd * damageRatio);
+                    zombie.setTint((0xaa << 16) | (blue << 8) | 0xff);
+                  } else {
+                    const brightness = Math.floor(0x88 + (0x77 * damageRatio));
+                    zombie.setTint((brightness << 16) | (brightness << 8) | brightness);
+                  }
+                }
+              });
+            }
+          }
         }
       }
     }
@@ -1142,6 +1222,11 @@ export class MainScene extends Phaser.Scene {
       body.velocity.x + Math.cos(angle) * strength,
       body.velocity.y + Math.sin(angle) * strength
     );
+  }
+
+  private handleSnowballHit() {
+    if (this.isJumping || this.isInvulnerable || this.isGameOver) return;
+    this.handlePlayerHit();
   }
 
   private handlePlayerHit() {
@@ -1370,6 +1455,7 @@ export class MainScene extends Phaser.Scene {
 
     this.enemyManager.updateRobots();
     this.enemyManager.updateEnders();
+    this.enemyManager.updateSnowmonsters(this.time.now);
   }
 
   private startRobotBurst() {

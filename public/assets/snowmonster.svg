@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Shadow/Base -->
+  <ellipse cx="32" cy="60" rx="26" ry="5" fill="#1a1a2a" opacity="0.4"/>
+
+  <!-- Massive Furry Body -->
+  <rect x="10" y="26" width="44" height="32" rx="8" fill="#c8ddef"/>
+  <rect x="14" y="30" width="36" height="26" rx="5" fill="#ddeeff"/>
+  <!-- Fur texture lines -->
+  <line x1="18" y1="34" x2="18" y2="52" stroke="#bbd4e8" stroke-width="1.5" opacity="0.6"/>
+  <line x1="24" y1="32" x2="24" y2="54" stroke="#bbd4e8" stroke-width="1.5" opacity="0.6"/>
+  <line x1="32" y1="30" x2="32" y2="54" stroke="#bbd4e8" stroke-width="1.5" opacity="0.6"/>
+  <line x1="40" y1="32" x2="40" y2="54" stroke="#bbd4e8" stroke-width="1.5" opacity="0.6"/>
+  <line x1="46" y1="34" x2="46" y2="52" stroke="#bbd4e8" stroke-width="1.5" opacity="0.6"/>
+
+  <!-- Big Round Head -->
+  <ellipse cx="32" cy="18" rx="22" ry="18" fill="#ddeeff"/>
+  <ellipse cx="32" cy="16" rx="18" ry="14" fill="#eef5ff"/>
+
+  <!-- Horns/Ice spikes -->
+  <polygon points="12,10 8,0 16,6" fill="#88bbee"/>
+  <polygon points="52,10 56,0 48,6" fill="#88bbee"/>
+
+  <!-- Eyes - angry and glowing -->
+  <ellipse cx="22" cy="14" rx="6" ry="5" fill="#ffffff"/>
+  <ellipse cx="42" cy="14" rx="6" ry="5" fill="#ffffff"/>
+  <circle cx="23" cy="14" r="3" fill="#4488cc"/>
+  <circle cx="43" cy="14" r="3" fill="#4488cc"/>
+  <circle cx="24" cy="13" r="1.5" fill="#ffffff"/>
+  <circle cx="44" cy="13" r="1.5" fill="#ffffff"/>
+
+  <!-- Angry eyebrows -->
+  <polygon points="14,8 30,6 28,10 14,12" fill="#99c4e0"/>
+  <polygon points="50,8 34,6 36,10 50,12" fill="#99c4e0"/>
+
+  <!-- Nose -->
+  <circle cx="32" cy="20" r="3" fill="#aaccdd"/>
+
+  <!-- Mouth with icy fangs -->
+  <rect x="22" y="24" width="20" height="6" rx="2" fill="#334455"/>
+  <polygon points="24,24 28,24 26,30" fill="#ffffff"/>
+  <polygon points="36,24 40,24 38,30" fill="#ffffff"/>
+
+  <!-- Massive Arms -->
+  <rect x="0" y="28" width="14" height="22" rx="5" fill="#c8ddef"/>
+  <rect x="50" y="28" width="14" height="22" rx="5" fill="#c8ddef"/>
+  <rect x="2" y="30" width="10" height="18" rx="4" fill="#ddeeff"/>
+  <rect x="52" y="30" width="10" height="18" rx="4" fill="#ddeeff"/>
+
+  <!-- Claws -->
+  <polygon points="0,48 3,48 1,54" fill="#aaccdd"/>
+  <polygon points="5,48 8,48 6,54" fill="#aaccdd"/>
+  <polygon points="10,48 13,48 11,54" fill="#aaccdd"/>
+  <polygon points="51,48 54,48 52,54" fill="#aaccdd"/>
+  <polygon points="56,48 59,48 57,54" fill="#aaccdd"/>
+  <polygon points="61,48 64,48 63,54" fill="#aaccdd"/>
+
+  <!-- Ice crystals on shoulders -->
+  <polygon points="10,26 14,26 12,18" fill="#88bbee" opacity="0.8"/>
+  <polygon points="50,26 54,26 52,18" fill="#88bbee" opacity="0.8"/>
+</svg>

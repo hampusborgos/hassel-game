@@ -29,6 +29,15 @@ export const ENDER_CHARGE_TIME_MIN = 2000;
 export const ENDER_CHARGE_TIME_MAX = 4000;
 export const ENDER_HEALTH = 18;
 
+// Snowmonster
+export const SNOWMONSTER_HEALTH = 300;
+export const SNOWMONSTER_SPEED = 35;
+export const SNOWMONSTER_FIRST_WAVE = 10;
+export const SNOWMONSTER_THROW_COOLDOWN = 2500;
+export const SNOWBALL_FLIGHT_TIME = 1000;
+export const SNOWBALL_DAMAGE_RADIUS = 45;
+export const SNOWMONSTER_POINTS = 1000;
+
 // World generation
 export const TREE_SPAWN_INTERVAL = 150;
 

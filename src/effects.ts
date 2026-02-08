@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { playShieldBreak, playStompKill, playGrenadeExplosion } from './sfxr';
+import { playShieldBreak, playStompKill, playGrenadeExplosion, playSnowballLand } from './sfxr';
 import { DEPTH } from './constants';
 
 export function createExplosion(scene: Phaser.Scene, x: number, y: number): void {
@@ -472,6 +472,123 @@ export function createEnderExplosion(
   scene.tweens.add({
     targets: flash,
     scale: 1.8,
+    alpha: 0,
+    duration: 200,
+    ease: 'Quad.easeOut',
+    onComplete: () => flash.destroy()
+  });
+}
+
+export function createSnowmonsterExplosion(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  hitAngle?: number
+): void {
+  const particleCount = 10;
+  const colors = [0xddeeff, 0xaaddff, 0x88bbee, 0xffffff, 0xc8ddef];
+
+  const boostX = hitAngle !== undefined ? Math.cos(hitAngle) * 80 : 0;
+  const boostY = hitAngle !== undefined ? Math.sin(hitAngle) * 40 : 0;
+
+  for (let i = 0; i < particleCount; i++) {
+    const color = colors[Phaser.Math.Between(0, colors.length - 1)];
+    const size = Phaser.Math.Between(4, 9);
+
+    const particle = scene.add.circle(x, y, size, color);
+    particle.setDepth(DEPTH.EXPLOSION);
+
+    const finalX = x + Phaser.Math.Between(-40, 40) + boostX;
+    const finalY = y + Phaser.Math.Between(15, 30) + boostY * 0.5;
+    const peakY = y - Phaser.Math.Between(50, 90) + boostY;
+
+    const duration = Phaser.Math.Between(350, 500);
+
+    scene.tweens.add({
+      targets: particle,
+      x: finalX,
+      duration: duration,
+      ease: 'Linear'
+    });
+
+    scene.tweens.add({
+      targets: particle,
+      y: peakY,
+      duration: duration * 0.35,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        scene.tweens.add({
+          targets: particle,
+          y: finalY,
+          duration: duration * 0.65,
+          ease: 'Quad.easeIn'
+        });
+      }
+    });
+
+    scene.tweens.add({
+      targets: particle,
+      alpha: 0,
+      scale: 0.3,
+      duration: duration,
+      delay: duration * 0.7,
+      ease: 'Linear',
+      onComplete: () => {
+        particle.destroy();
+      }
+    });
+  }
+
+  // Icy flash
+  const flash = scene.add.circle(x, y, 20, 0xaaddff, 0.7);
+  flash.setDepth(DEPTH.EXPLOSION - 1);
+  scene.tweens.add({
+    targets: flash,
+    scale: 1.8,
+    alpha: 0,
+    duration: 200,
+    ease: 'Quad.easeOut',
+    onComplete: () => flash.destroy()
+  });
+}
+
+export function createSnowballSplash(
+  scene: Phaser.Scene,
+  x: number,
+  y: number
+): void {
+  playSnowballLand();
+
+  const particleCount = 8;
+  const colors = [0xddeeff, 0xffffff, 0xaaddff, 0xc8ddef];
+
+  for (let i = 0; i < particleCount; i++) {
+    const angle = (i / particleCount) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.3, 0.3);
+    const dist = Phaser.Math.Between(30, 60);
+    const color = colors[Phaser.Math.Between(0, colors.length - 1)];
+    const size = Phaser.Math.Between(3, 7);
+
+    const particle = scene.add.circle(x, y, size, color);
+    particle.setDepth(DEPTH.EXPLOSION);
+
+    scene.tweens.add({
+      targets: particle,
+      x: x + Math.cos(angle) * dist,
+      y: y + Math.sin(angle) * dist,
+      alpha: 0,
+      scale: 0.2,
+      duration: Phaser.Math.Between(250, 400),
+      ease: 'Quad.easeOut',
+      onComplete: () => particle.destroy()
+    });
+  }
+
+  // White flash at impact
+  const flash = scene.add.circle(x, y, 20, 0xffffff, 0.6);
+  flash.setDepth(DEPTH.EXPLOSION - 1);
+  scene.tweens.add({
+    targets: flash,
+    scale: 2,
     alpha: 0,
     duration: 200,
     ease: 'Quad.easeOut',

@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Shadow/Base -->
+  <ellipse cx="32" cy="60" rx="26" ry="5" fill="#1a1a2a" opacity="0.4"/>
+
+  <!-- Massive Furry Body -->
+  <rect x="10" y="26" width="44" height="32" rx="8" fill="#c8ddef"/>
+  <rect x="14" y="30" width="36" height="26" rx="5" fill="#ddeeff"/>
+  <!-- Fur texture lines -->
+  <line x1="18" y1="34" x2="18" y2="52" stroke="#bbd4e8" stroke-width="1.5" opacity="0.6"/>
+  <line x1="24" y1="32" x2="24" y2="54" stroke="#bbd4e8" stroke-width="1.5" opacity="0.6"/>
+  <line x1="32" y1="30" x2="32" y2="54" stroke="#bbd4e8" stroke-width="1.5" opacity="0.6"/>
+  <line x1="40" y1="32" x2="40" y2="54" stroke="#bbd4e8" stroke-width="1.5" opacity="0.6"/>
+  <line x1="46" y1="34" x2="46" y2="52" stroke="#bbd4e8" stroke-width="1.5" opacity="0.6"/>
+
+  <!-- Big Round Head -->
+  <ellipse cx="32" cy="18" rx="22" ry="18" fill="#ddeeff"/>
+  <ellipse cx="32" cy="16" rx="18" ry="14" fill="#eef5ff"/>
+
+  <!-- Horns/Ice spikes -->
+  <polygon points="12,10 8,0 16,6" fill="#88bbee"/>
+  <polygon points="52,10 56,0 48,6" fill="#88bbee"/>
+
+  <!-- Eyes - angry and glowing -->
+  <ellipse cx="22" cy="14" rx="6" ry="5" fill="#ffffff"/>
+  <ellipse cx="42" cy="14" rx="6" ry="5" fill="#ffffff"/>
+  <circle cx="23" cy="14" r="3" fill="#4488cc"/>
+  <circle cx="43" cy="14" r="3" fill="#4488cc"/>
+  <circle cx="24" cy="13" r="1.5" fill="#ffffff"/>
+  <circle cx="44" cy="13" r="1.5" fill="#ffffff"/>
+
+  <!-- Angry eyebrows -->
+  <polygon points="14,8 30,6 28,10 14,12" fill="#99c4e0"/>
+  <polygon points="50,8 34,6 36,10 50,12" fill="#99c4e0"/>
+
+  <!-- Nose -->
+  <circle cx="32" cy="20" r="3" fill="#aaccdd"/>
+
+  <!-- Mouth open wide - roaring while throwing -->
+  <rect x="20" y="23" width="24" height="8" rx="2" fill="#334455"/>
+  <polygon points="22,23 26,23 24,30" fill="#ffffff"/>
+  <polygon points="38,23 42,23 40,30" fill="#ffffff"/>
+
+  <!-- Arms raised above head -->
+  <!-- Left arm going up -->
+  <rect x="4" y="8" width="12" height="22" rx="5" fill="#c8ddef" transform="rotate(-15, 10, 28)"/>
+  <rect x="6" y="10" width="8" height="18" rx="4" fill="#ddeeff" transform="rotate(-15, 10, 28)"/>
+  <!-- Right arm going up -->
+  <rect x="48" y="8" width="12" height="22" rx="5" fill="#c8ddef" transform="rotate(15, 54, 28)"/>
+  <rect x="50" y="10" width="8" height="18" rx="4" fill="#ddeeff" transform="rotate(15, 54, 28)"/>
+
+  <!-- Claws on raised hands -->
+  <polygon points="6,6 9,6 7,0" fill="#aaccdd"/>
+  <polygon points="10,5 13,5 11,0" fill="#aaccdd"/>
+  <polygon points="51,5 54,5 52,0" fill="#aaccdd"/>
+  <polygon points="55,6 58,6 56,0" fill="#aaccdd"/>
+
+  <!-- Snowball held above head -->
+  <circle cx="32" cy="2" r="7" fill="#eef5ff"/>
+  <circle cx="32" cy="2" r="5.5" fill="#ffffff"/>
+  <circle cx="30" cy="0" r="1.5" fill="#ddeeff" opacity="0.6"/>
+
+  <!-- Ice crystals on shoulders -->
+  <polygon points="10,26 14,26 12,18" fill="#88bbee" opacity="0.8"/>
+  <polygon points="50,26 54,26 52,18" fill="#88bbee" opacity="0.8"/>
+</svg>

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
-import { ZOMBIE_BASE_SPEED, ROBOT_SPEED, BOSS_WAVES, MULTI_BOSS_WAVE, DEPTH, ENDER_SPEED, ENDER_CHARGE_TIME_MIN, ENDER_CHARGE_TIME_MAX, ENDER_HEALTH } from './constants';
-import { playBossAmbiance, playRobotTelegraph, playRobotRun, playEnderTeleport, playEnderCharge } from './sfxr';
-import { createEnderChargeParticle, createEnderTeleportEffect } from './effects';
+import { ZOMBIE_BASE_SPEED, ROBOT_SPEED, BOSS_WAVES, MULTI_BOSS_WAVE, DEPTH, ENDER_SPEED, ENDER_CHARGE_TIME_MIN, ENDER_CHARGE_TIME_MAX, ENDER_HEALTH, SNOWMONSTER_HEALTH, SNOWMONSTER_SPEED, SNOWMONSTER_FIRST_WAVE, SNOWMONSTER_THROW_COOLDOWN, SNOWBALL_FLIGHT_TIME, SNOWBALL_DAMAGE_RADIUS, SNOWMONSTER_POINTS } from './constants';
+import { playBossAmbiance, playRobotTelegraph, playRobotRun, playEnderTeleport, playEnderCharge, playSnowballThrow } from './sfxr';
+import { createEnderChargeParticle, createEnderTeleportEffect, createSnowballSplash } from './effects';
 
 export class EnemyManager {
   private scene: Phaser.Scene;
@@ -9,6 +9,7 @@ export class EnemyManager {
   private robots: Phaser.Physics.Arcade.Group;
   private enders: Phaser.Physics.Arcade.Group;
   private player: Phaser.Physics.Arcade.Sprite;
+  private snowballDamageCallback: (() => void) | null = null;
 
   constructor(
     scene: Phaser.Scene,
@@ -22,6 +23,10 @@ export class EnemyManager {
     this.robots = robots;
     this.player = player;
     this.enders = enders || scene.physics.add.group({});
+  }
+
+  setSnowballDamageCallback(callback: () => void): void {
+    this.snowballDamageCallback = callback;
   }
 
   setEndersGroup(enders: Phaser.Physics.Arcade.Group): void {
@@ -62,6 +67,21 @@ export class EnemyManager {
       for (let i = 0; i < bossCount; i++) {
         this.scene.time.delayedCall(500 + i * 300, () => {
           this.spawnBossZombie(healthMult, speedMult);
+        });
+      }
+    }
+
+    // Snowmonster: 1 on wave 10, then scaling after wave 10
+    if (waveNumber >= SNOWMONSTER_FIRST_WAVE) {
+      const snowmonsterCount = waveNumber === SNOWMONSTER_FIRST_WAVE
+        ? 1
+        : Math.min(1 + Math.floor((waveNumber - SNOWMONSTER_FIRST_WAVE) / 2), 4);
+      const healthMult = 1 + (waveNumber - SNOWMONSTER_FIRST_WAVE) * 0.3;
+      const speedMult = 1 + (waveNumber - SNOWMONSTER_FIRST_WAVE) * 0.05;
+
+      for (let i = 0; i < snowmonsterCount; i++) {
+        this.scene.time.delayedCall(800 + i * 400, () => {
+          this.spawnSnowmonster(healthMult, speedMult);
         });
       }
     }
@@ -617,5 +637,174 @@ export class EnemyManager {
     if (chargeTimer) {
       chargeTimer.destroy();
     }
+  }
+
+  // Snowmonster methods
+  private spawnSnowmonster(healthMultiplier: number = 1, speedMultiplier: number = 1): void {
+    const cam = this.scene.cameras.main;
+
+    const x = Phaser.Math.Between(cam.scrollX + 100, cam.scrollX + cam.width - 100);
+    const y = cam.scrollY + cam.height + 100;
+
+    const health = Math.round(SNOWMONSTER_HEALTH * healthMultiplier);
+
+    const boss = this.zombies.create(x, y, 'snowmonster') as Phaser.Physics.Arcade.Sprite;
+    boss.setScale(2);
+    boss.setDepth(y);
+    boss.setData('health', health);
+    boss.setData('maxHealth', health);
+    boss.setData('points', SNOWMONSTER_POINTS);
+    boss.setData('isBoss', true);
+    boss.setData('isSnowmonster', true);
+    boss.setData('speedMultiplier', speedMultiplier);
+    boss.setData('baseFrame', 'snowmonster');
+    boss.setData('nextThrowTime', this.scene.time.now + 2000); // Initial delay before first throw
+
+    // Health bar
+    const barWidth = 80;
+    const barHeight = 8;
+    const healthBarBg = this.scene.add.rectangle(x, y - 70, barWidth, barHeight, 0x880000);
+    const healthBarFg = this.scene.add.rectangle(x, y - 70, barWidth, barHeight, 0x88ddff);
+    healthBarBg.setDepth(y + 1);
+    healthBarFg.setDepth(y + 2);
+    boss.setData('healthBarBg', healthBarBg);
+    boss.setData('healthBarFg', healthBarFg);
+    boss.setData('healthBarWidth', barWidth);
+
+    this.setSnowmonsterVelocity(boss, speedMultiplier);
+  }
+
+  private setSnowmonsterVelocity(boss: Phaser.Physics.Arcade.Sprite, speedMultiplier: number): void {
+    const speed = SNOWMONSTER_SPEED * speedMultiplier;
+    const dx = this.player.x - boss.x;
+    const dy = this.player.y - boss.y;
+    const angle = Math.atan2(dy, dx);
+    const wobbleAngle = angle + Phaser.Math.FloatBetween(-0.3, 0.3);
+
+    boss.setVelocity(
+      Math.cos(wobbleAngle) * speed,
+      Math.sin(wobbleAngle) * speed
+    );
+
+    boss.setData('speed', speed);
+    boss.setData('waddleOffset', Phaser.Math.FloatBetween(0, Math.PI * 2));
+  }
+
+  updateSnowmonsters(time: number): void {
+    const zombies = this.zombies.getChildren() as Phaser.Physics.Arcade.Sprite[];
+
+    for (const zombie of zombies) {
+      if (!zombie.active || !zombie.getData('isSnowmonster')) continue;
+
+      const nextThrowTime = zombie.getData('nextThrowTime') || 0;
+      if (time >= nextThrowTime) {
+        // Predict player position slightly based on velocity
+        const playerVelX = this.player.body?.velocity.x || 0;
+        const playerVelY = this.player.body?.velocity.y || 0;
+        const leadTime = 0.3; // seconds of prediction
+        const targetX = this.player.x + playerVelX * leadTime;
+        const targetY = this.player.y + playerVelY * leadTime;
+
+        // Switch to throw sprite
+        zombie.setTexture('snowmonster-throw');
+        zombie.setData('baseFrame', 'snowmonster-throw');
+
+        this.throwSnowball(zombie.x, zombie.y, targetX, targetY);
+        zombie.setData('nextThrowTime', time + SNOWMONSTER_THROW_COOLDOWN);
+
+        // Swap back to normal sprite after throw animation
+        this.scene.time.delayedCall(500, () => {
+          if (zombie.active) {
+            zombie.setTexture('snowmonster');
+            zombie.setData('baseFrame', 'snowmonster');
+          }
+        });
+
+        // Retarget towards player after throwing
+        const speedMult = zombie.getData('speedMultiplier') || 1;
+        this.setSnowmonsterVelocity(zombie, speedMult);
+      }
+    }
+  }
+
+  private throwSnowball(fromX: number, fromY: number, targetX: number, targetY: number): void {
+    playSnowballThrow();
+
+    // Create shadow at target position
+    const shadow = this.scene.add.ellipse(targetX, targetY, 20, 10, 0x000000, 0.15);
+    shadow.setDepth(DEPTH.BULLETS);
+
+    // Grow shadow to indicate incoming
+    this.scene.tweens.add({
+      targets: shadow,
+      scaleX: 2,
+      scaleY: 2,
+      alpha: 0.4,
+      duration: SNOWBALL_FLIGHT_TIME,
+      ease: 'Quad.easeIn'
+    });
+
+    // Create snowball sprite at boss position
+    const snowball = this.scene.add.sprite(fromX, fromY - 40, 'snowball');
+    snowball.setDepth(DEPTH.EXPLOSION);
+    snowball.setScale(0.5);
+
+    // Calculate arc
+    const flightTime = SNOWBALL_FLIGHT_TIME;
+    const arcHeight = -120; // Peak height offset
+
+    // Tween X/Y linearly to target
+    this.scene.tweens.add({
+      targets: snowball,
+      x: targetX,
+      duration: flightTime,
+      ease: 'Linear'
+    });
+
+    // Tween Y with custom arc via onUpdate
+    const startY = fromY - 40;
+    this.scene.tweens.add({
+      targets: snowball,
+      y: targetY,
+      duration: flightTime,
+      ease: 'Linear',
+      onUpdate: (tween) => {
+        const progress = tween.progress;
+        // Parabolic arc: peaks at midpoint
+        const arcOffset = arcHeight * 4 * progress * (1 - progress);
+        const linearY = startY + (targetY - startY) * progress;
+        snowball.y = linearY + arcOffset;
+
+        // Scale: grows during rise, shrinks during fall
+        const scale = 0.5 + 0.5 * Math.sin(progress * Math.PI);
+        snowball.setScale(scale);
+
+        // Rotation for visual flair
+        snowball.rotation += 0.1;
+      },
+      onComplete: () => {
+        // Snowball landed - check damage
+        const dist = Phaser.Math.Distance.Between(
+          this.player.x, this.player.y, targetX, targetY
+        );
+
+        if (dist < SNOWBALL_DAMAGE_RADIUS && this.snowballDamageCallback) {
+          this.snowballDamageCallback();
+        }
+
+        // Splash effect
+        createSnowballSplash(this.scene, targetX, targetY);
+
+        // Cleanup
+        snowball.destroy();
+        shadow.destroy();
+      }
+    });
+  }
+
+  cleanupSnowmonsterTimers(snowmonster: Phaser.Physics.Arcade.Sprite): void {
+    // Snowmonsters don't have persistent timers, but this keeps a consistent API
+    // for future extensibility
+    snowmonster.setData('nextThrowTime', Infinity);
   }
 }

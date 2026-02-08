@@ -30,6 +30,11 @@ const sprites = [
   { name: 'robot-hit', file: 'robot.svg', width: 40, height: 48, isHitVariant: true },
   { name: 'ender-zombie', file: 'ender-zombie.svg', width: 48, height: 48 },
   { name: 'ender-zombie-hit', file: 'ender-zombie.svg', width: 48, height: 48, isHitVariant: true },
+  { name: 'snowmonster', file: 'snowmonster.svg', width: 64, height: 64 },
+  { name: 'snowmonster-hit', file: 'snowmonster.svg', width: 64, height: 64, isHitVariant: true },
+  { name: 'snowmonster-throw', file: 'snowmonster-throw.svg', width: 64, height: 64 },
+  { name: 'snowmonster-throw-hit', file: 'snowmonster-throw.svg', width: 64, height: 64, isHitVariant: true },
+  { name: 'snowball', file: 'snowball.svg', width: 16, height: 16 },
 ];
 
 // Round up to next power of 2 (required for iOS WebGL compatibility)
